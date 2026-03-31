@@ -14,14 +14,6 @@ from flask_limiter.util import get_remote_address
 import yt_dlp
 import requests as req_lib
 
-# Keep yt-dlp updated
-try:
-    import subprocess
-    subprocess.run([sys.executable, '-m', 'pip', 'install', '--upgrade', 'yt-dlp'], 
-                   capture_output=True, timeout=30)
-except:
-    pass  # Silent fail if update not possible
-
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "DELETE"], "allow_headers": ["Content-Type"]}})
 
