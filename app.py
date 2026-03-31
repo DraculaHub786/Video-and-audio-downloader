@@ -201,9 +201,28 @@ def dl_worker(task_id, url, fmt_type, quality):
         }]
 
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            prepared = ydl.prepare_filename(info)
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                prepared = ydl.prepare_filename(info)
+        except Exception as first_err:
+            # Retry once with a simpler YouTube client profile for bot-check/player-response failures.
+            msg = str(first_err).lower()
+            retriable = (
+                'failed to extract any player response' in msg or
+                'confirm you\'re not a bot' in msg or
+                'sign in to confirm your age' in msg
+            )
+            if not retriable:
+                raise
+
+            fallback_opts = dict(ydl_opts)
+            fallback_opts['extractor_args'] = {'youtube': {'player_client': ['web']}}
+            fallback_opts['retries'] = 2
+            fallback_opts['extractor_retries'] = 2
+            with yt_dlp.YoutubeDL(fallback_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                prepared = ydl.prepare_filename(info)
 
         # File is fully merged/downloaded now on disk.
         filename = prepared
@@ -235,9 +254,15 @@ def dl_worker(task_id, url, fmt_type, quality):
 
     except Exception as e:
         msg = str(e).lower()
-        err_out = f"Download failed: {str(e)[:100]}"
-        if 'private' in msg or 'sign in' in msg: err_out = 'Private or login-required video.'
-        if 'ffmpeg' in msg: err_out = 'Server missing FFMPEG. Still deploying.'
+        err_out = f"Download failed: {str(e)[:140]}"
+        if 'private video' in msg or 'members-only' in msg:
+            err_out = 'This video is private or members-only.'
+        elif 'login' in msg or 'sign in to confirm your age' in msg:
+            err_out = 'This video requires account login/age verification, which cloud servers cannot provide.'
+        elif 'confirm you\'re not a bot' in msg or 'failed to extract any player response' in msg:
+            err_out = 'YouTube anti-bot check blocked extraction on server. Try again or use another video.'
+        elif 'ffmpeg' in msg:
+            err_out = 'Server missing FFMPEG. Still deploying.'
         with tasks_lock:
             if task_id in tasks:
                 tasks[task_id]['status'] = 'error'
