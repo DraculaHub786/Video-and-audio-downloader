@@ -1,7 +1,58 @@
 #!/bin/bash
-# Auto-update yt-dlp before starting the app
-# Force reinstall latest yt-dlp to bypass YouTube extraction issues
-pip install --force-reinstall --no-cache-dir --upgrade yt-dlp
-echo "Starting app with yt-dlp version:"
-python -c "import yt_dlp; print(yt_dlp.__version__)"
-gunicorn app:app
+# Render startup script - ensures latest yt-dlp and ffmpeg availability
+
+echo "========================================="
+echo "StreamGrab Startup Script"
+echo "========================================="
+
+# Update yt-dlp to latest (YouTube changes protections frequently)
+echo "Updating yt-dlp to absolute latest..."
+pip install --force-reinstall --no-cache-dir --upgrade yt-dlp --quiet
+
+# Ensure ffmpeg is in PATH
+echo "Checking ffmpeg availability..."
+if ! command -v ffmpeg &> /dev/null; then
+    echo "ffmpeg not found in PATH, installing static-ffmpeg..."
+    pip install --no-cache-dir --upgrade static-ffmpeg --quiet
+    
+    # Add static-ffmpeg to PATH
+    export PATH="$HOME/.local/bin:$PATH"
+    
+    # Try to symlink static ffmpeg if available
+    python3 -c "
+import os, shutil
+try:
+    from static_ffmpeg import run
+    ffmpeg_path = shutil.which('ffmpeg')
+    if ffmpeg_path:
+        print(f'✓ ffmpeg available at: {ffmpeg_path}')
+    else:
+        print('✗ Warning: ffmpeg still not accessible')
+except:
+    print('✗ static-ffmpeg import failed')
+" 2>/dev/null
+else
+    echo "✓ ffmpeg found at: $(which ffmpeg)"
+fi
+
+# Display versions
+echo ""
+echo "========================================="
+echo "Environment Check:"
+echo "========================================="
+python3 -c "import yt_dlp; print(f'✓ yt-dlp version: {yt_dlp.__version__}')" 2>/dev/null || echo "✗ yt-dlp not available"
+ffmpeg -version 2>&1 | head -n 1 | grep -o "version [^ ]*" || echo "✗ ffmpeg version unknown"
+echo "✓ Python version: $(python3 --version)"
+echo "========================================="
+echo "Starting gunicorn server..."
+echo "========================================="
+
+# Start the app with proper worker configuration
+exec gunicorn app:app \
+    --bind 0.0.0.0:${PORT:-10000} \
+    --workers 2 \
+    --threads 4 \
+    --timeout 120 \
+    --access-logfile - \
+    --error-logfile - \
+    --log-level info

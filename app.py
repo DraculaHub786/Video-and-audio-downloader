@@ -2,6 +2,7 @@ import sys, io, os, re, threading, uuid, time
 from datetime import datetime
 from urllib.parse import urlparse
 import tempfile
+import shutil
 
 # Fix Unicode on Windows
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
@@ -14,6 +15,23 @@ from flask_limiter.util import get_remote_address
 import yt_dlp
 import requests as req_lib
 
+# ── FFMPEG Detection ──
+def find_ffmpeg():
+    """Find ffmpeg in system PATH or from static-ffmpeg package."""
+    # Try system PATH first
+    ffmpeg_path = shutil.which('ffmpeg')
+    if ffmpeg_path:
+        return os.path.dirname(ffmpeg_path)
+    
+    # Check current directory (Windows development)
+    if os.path.exists('./ffmpeg.exe'):
+        return '.'
+    
+    return None  # Will use system ffmpeg or fail gracefully
+
+FFMPEG_LOCATION = find_ffmpeg()
+print(f"[INIT] FFMPEG location: {FFMPEG_LOCATION or 'system PATH'}")
+
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "DELETE"], "allow_headers": ["Content-Type"]}})
 
@@ -22,7 +40,7 @@ limiter = Limiter(app=app, key_func=get_remote_address,
                   storage_uri="memory://")
 
 MAX_SIZE = 700 * 1024 * 1024  # 700 MB
-APP_VERSION = os.environ.get('APP_VERSION', '2026-03-31-hotfix-2')
+APP_VERSION = os.environ.get('APP_VERSION', '2026-03-31-full-fix')
 
 # ── Global Task Dictionary ──
 tasks = {}
@@ -229,15 +247,14 @@ def dl_worker(task_id, url, fmt_type, quality):
         'quiet': False,
         'no_warnings': False,
         'noplaylist': True,
-        'prefer_ffmpeg': True,        
-        'ffmpeg_location': '.',       
+        'prefer_ffmpeg': True,
         'no_check_certificate': True,
         'socket_timeout': 30,
         'concurrent_fragment_downloads': 15, 
         'http_chunk_size': 10485760,
         'hls_prefer_native': False,
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'en-us,en;q=0.5',
             'Sec-Fetch-Mode': 'navigate',
@@ -255,6 +272,10 @@ def dl_worker(task_id, url, fmt_type, quality):
         'ignoreerrors': False,
         'progress_hooks': [progress_hook]
     }
+    
+    # Add ffmpeg location if detected
+    if FFMPEG_LOCATION:
+        ydl_opts['ffmpeg_location'] = FFMPEG_LOCATION
 
     if fmt_type == 'video':
         ydl_opts['merge_output_format'] = 'mp4'

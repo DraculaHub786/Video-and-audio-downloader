@@ -3,5 +3,5 @@ flask-cors==4.0.0
 Flask-Limiter==3.5.0
 yt-dlp
 requests==2.31.0
-imageio-ffmpeg==0.4.9
 gunicorn==21.2.0
+static-ffmpeg
