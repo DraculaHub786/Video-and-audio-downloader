@@ -22,6 +22,7 @@ limiter = Limiter(app=app, key_func=get_remote_address,
                   storage_uri="memory://")
 
 MAX_SIZE = 700 * 1024 * 1024  # 700 MB
+APP_VERSION = os.environ.get('APP_VERSION', '2026-03-31-hotfix-2')
 
 # ── Global Task Dictionary ──
 tasks = {}
@@ -146,7 +147,20 @@ def index():
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint for UptimeRobot to keep the app alive."""
-    return jsonify({'status': 'ok', 'message': 'App is running'}), 200
+    return jsonify({
+        'status': 'ok',
+        'message': 'App is running',
+        'app_version': APP_VERSION,
+        'yt_dlp_version': getattr(yt_dlp, '__version__', 'unknown')
+    }), 200
+
+
+@app.route('/version', methods=['GET'])
+def version_check():
+    return jsonify({
+        'app_version': APP_VERSION,
+        'yt_dlp_version': getattr(yt_dlp, '__version__', 'unknown')
+    }), 200
 
 
 @app.route('/info', methods=['POST'])
