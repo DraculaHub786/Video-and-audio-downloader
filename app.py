@@ -3,6 +3,7 @@ from datetime import datetime
 from urllib.parse import urlparse
 import tempfile
 import shutil
+import base64
 
 # Fix Unicode on Windows
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
@@ -32,6 +33,38 @@ def find_ffmpeg():
 FFMPEG_LOCATION = find_ffmpeg()
 print(f"[INIT] FFMPEG location: {FFMPEG_LOCATION or 'system PATH'}")
 
+# ── YouTube Cookies Setup ──
+COOKIES_FILE = None
+
+def setup_cookies():
+    """Setup YouTube cookies from environment variable or file."""
+    global COOKIES_FILE
+    
+    # Try environment variable first (for Render deployment)
+    cookies_b64 = os.environ.get('YOUTUBE_COOKIES_BASE64')
+    if cookies_b64:
+        try:
+            cookies_content = base64.b64decode(cookies_b64).decode('utf-8')
+            cookies_path = os.path.join(tempfile.gettempdir(), 'youtube_cookies.txt')
+            with open(cookies_path, 'w', encoding='utf-8') as f:
+                f.write(cookies_content)
+            COOKIES_FILE = cookies_path
+            print(f"[INIT] ✓ YouTube cookies loaded from environment variable")
+            return
+        except Exception as e:
+            print(f"[INIT] ✗ Failed to decode YOUTUBE_COOKIES_BASE64: {e}")
+    
+    # Try direct file (for local development)
+    if os.path.exists('youtube_cookies.txt'):
+        COOKIES_FILE = 'youtube_cookies.txt'
+        print(f"[INIT] ✓ YouTube cookies found: youtube_cookies.txt")
+        return
+    
+    print(f"[INIT] ⚠ No YouTube cookies found - some videos may fail")
+    print(f"[INIT]   To fix: Add YOUTUBE_COOKIES_BASE64 env var in Render")
+
+setup_cookies()
+
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "DELETE"], "allow_headers": ["Content-Type"]}})
 
@@ -40,7 +73,7 @@ limiter = Limiter(app=app, key_func=get_remote_address,
                   storage_uri="memory://")
 
 MAX_SIZE = 700 * 1024 * 1024  # 700 MB
-APP_VERSION = os.environ.get('APP_VERSION', '2026-03-31-full-fix')
+APP_VERSION = os.environ.get('APP_VERSION', '2026-03-31-cookies-fix')
 
 # ── Global Task Dictionary ──
 tasks = {}
@@ -125,7 +158,7 @@ BASE_YDL_INFO_OPTS = {
     'no_check_certificate': True,
     'socket_timeout': 15,
     'http_headers': {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-us,en;q=0.5',
         'Sec-Fetch-Mode': 'navigate',
@@ -139,6 +172,10 @@ BASE_YDL_INFO_OPTS = {
     },
     'age_limit': None,
 }
+
+# Add cookies if available
+if COOKIES_FILE and os.path.exists(COOKIES_FILE):
+    BASE_YDL_INFO_OPTS['cookiefile'] = COOKIES_FILE
 
 def pick_format_string(fmt_type, quality):
     """
@@ -272,6 +309,10 @@ def dl_worker(task_id, url, fmt_type, quality):
         'ignoreerrors': False,
         'progress_hooks': [progress_hook]
     }
+    
+    # Add cookies if available
+    if COOKIES_FILE and os.path.exists(COOKIES_FILE):
+        ydl_opts['cookiefile'] = COOKIES_FILE
     
     # Add ffmpeg location if detected
     if FFMPEG_LOCATION:
