@@ -65,7 +65,12 @@ BASE_YDL_INFO_OPTS = {
     'skip_download': True,
     'no_check_certificate': True,
     'socket_timeout': 15,
-    'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+    'extractor_args': {
+        'youtube': {
+            'player_client': ['android', 'android_embedded', 'web', 'web_embedded'],
+            'player_skip': ['js', 'configs']
+        }
+    },
 }
 
 def pick_format_string(fmt_type, quality):
@@ -168,7 +173,12 @@ def dl_worker(task_id, url, fmt_type, quality):
         'concurrent_fragment_downloads': 15, 
         'http_chunk_size': 10485760,
         'hls_prefer_native': False,   
-        'extractor_args': {'youtube': {'player_client': ['android', 'ios']}},
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'android_embedded', 'web', 'web_embedded'],
+                'player_skip': ['js', 'configs']
+            }
+        },
         'noprogress': True,
         'skip_unavailable_fragments': True,
         'ignoreerrors': False,
