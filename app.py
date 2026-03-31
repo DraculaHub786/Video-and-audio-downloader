@@ -59,6 +59,46 @@ def safe_name(name):
     return (name[:180] or 'download')
 
 
+def normalize_youtube_url(url):
+    """Normalize YouTube Shorts URLs to watch URLs for extractor stability."""
+    try:
+        p = urlparse(url)
+        host = p.netloc.lower().lstrip('www.')
+        if host == 'youtube.com' and p.path.startswith('/shorts/'):
+            vid = p.path.split('/shorts/', 1)[1].split('/')[0].split('?')[0]
+            if vid:
+                return f'https://www.youtube.com/watch?v={vid}'
+    except Exception:
+        pass
+    return url
+
+
+def classify_ydl_error(err):
+    msg = (err or '').lower()
+    msg = msg.replace('’', "'")
+    if 'private video' in msg or 'members-only' in msg:
+        return 'This video is private or members-only.'
+    if (
+        'login' in msg or
+        'sign in to confirm your age' in msg or
+        'sign in to confirm you\'re not a bot' in msg or
+        'not a bot' in msg
+    ):
+        return 'This video requires account login/age verification, which cloud servers cannot provide.'
+    if (
+        'confirm you\'re not a bot' in msg or
+        'failed to extract any player response' in msg or
+        'cookies-from-browser' in msg or
+        '--cookies' in msg
+    ):
+        return 'YouTube anti-bot check blocked extraction on server. Try again or use another video.'
+    if 'requested format is not available' in msg:
+        return 'Requested quality is unavailable for this video. Try a lower quality or audio mode.'
+    if 'ffmpeg' in msg:
+        return 'Server missing FFMPEG. Still deploying.'
+    return f"Download failed: {err[:140]}"
+
+
 BASE_YDL_INFO_OPTS = {
     'quiet': False,
     'no_warnings': False,
@@ -118,6 +158,7 @@ def get_info():
     ok, url = validate_url(url)
     if not ok:
         return jsonify({'error': url}), 400
+    url = normalize_youtube_url(url)
 
     try:
         with yt_dlp.YoutubeDL(BASE_YDL_INFO_OPTS) as ydl:
@@ -135,7 +176,7 @@ def get_info():
 
     except Exception as e:
         app.logger.warning(f"Info error: {e}")
-        return jsonify({'error': 'Could not fetch video info. Check the URL.'}), 400
+        return jsonify({'error': classify_ydl_error(str(e))}), 400
 
 
 # ── Async Task Worker ──
@@ -208,10 +249,13 @@ def dl_worker(task_id, url, fmt_type, quality):
         except Exception as first_err:
             # Retry once with a simpler YouTube client profile for bot-check/player-response failures.
             msg = str(first_err).lower()
+            msg = msg.replace('’', "'")
             retriable = (
                 'failed to extract any player response' in msg or
                 'confirm you\'re not a bot' in msg or
-                'sign in to confirm your age' in msg
+                'sign in to confirm your age' in msg or
+                'sign in to confirm you\'re not a bot' in msg or
+                'not a bot' in msg
             )
             if not retriable:
                 raise
@@ -253,16 +297,7 @@ def dl_worker(task_id, url, fmt_type, quality):
                 tasks[task_id]['filename'] = file_title
 
     except Exception as e:
-        msg = str(e).lower()
-        err_out = f"Download failed: {str(e)[:140]}"
-        if 'private video' in msg or 'members-only' in msg:
-            err_out = 'This video is private or members-only.'
-        elif 'login' in msg or 'sign in to confirm your age' in msg:
-            err_out = 'This video requires account login/age verification, which cloud servers cannot provide.'
-        elif 'confirm you\'re not a bot' in msg or 'failed to extract any player response' in msg:
-            err_out = 'YouTube anti-bot check blocked extraction on server. Try again or use another video.'
-        elif 'ffmpeg' in msg:
-            err_out = 'Server missing FFMPEG. Still deploying.'
+        err_out = classify_ydl_error(str(e))
         with tasks_lock:
             if task_id in tasks:
                 tasks[task_id]['status'] = 'error'
@@ -279,6 +314,7 @@ def start_download():
 
     ok, url = validate_url(url)
     if not ok: return jsonify({'error': url}), 400
+    url = normalize_youtube_url(url)
     if fmt_type not in ('video', 'audio'): return jsonify({'error': 'Invalid format'}), 400
 
     task_id = str(uuid.uuid4())
