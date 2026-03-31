@@ -108,13 +108,18 @@ BASE_YDL_INFO_OPTS = {
     'socket_timeout': 15,
     'http_headers': {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-us,en;q=0.5',
+        'Sec-Fetch-Mode': 'navigate',
     },
     'extractor_args': {
         'youtube': {
-            'player_client': ['android', 'android_embedded', 'web', 'web_embedded', 'ios'],
-            'player_skip': ['js', 'configs'],
+            'player_client': ['android', 'web'],
+            'player_skip': ['webpage', 'configs'],
+            'skip': ['dash', 'hls'],
         }
     },
+    'age_limit': None,
 }
 
 def pick_format_string(fmt_type, quality):
@@ -233,13 +238,18 @@ def dl_worker(task_id, url, fmt_type, quality):
         'hls_prefer_native': False,
         'http_headers': {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-us,en;q=0.5',
+            'Sec-Fetch-Mode': 'navigate',
         },
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'android_embedded', 'web', 'web_embedded', 'ios'],
-                'player_skip': ['js', 'configs'],
+                'player_client': ['android', 'web'],
+                'player_skip': ['webpage', 'configs'],
+                'skip': ['dash', 'hls'],
             }
         },
+        'age_limit': None,
         'noprogress': True,
         'skip_unavailable_fragments': True,
         'ignoreerrors': False,
@@ -275,9 +285,15 @@ def dl_worker(task_id, url, fmt_type, quality):
                 raise
 
             fallback_opts = dict(ydl_opts)
-            fallback_opts['extractor_args'] = {'youtube': {'player_client': ['web']}}
-            fallback_opts['retries'] = 2
-            fallback_opts['extractor_retries'] = 2
+            fallback_opts['extractor_args'] = {
+                'youtube': {
+                    'player_client': ['android_creator', 'android', 'web'],
+                    'player_skip': ['configs'],
+                }
+            }
+            fallback_opts['retries'] = 3
+            fallback_opts['fragment_retries'] = 3
+            fallback_opts['extractor_retries'] = 3
             with yt_dlp.YoutubeDL(fallback_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 prepared = ydl.prepare_filename(info)
