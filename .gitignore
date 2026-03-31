@@ -46,6 +46,7 @@ Thumbs.db
 # FFmpeg binaries and extracted bundles
 ffmpeg_extracted/
 ffmpeg/
+ffmpeg.zip
 ffmpeg.exe
 ffprobe.exe
 ffplay.exe
