@@ -95,6 +95,12 @@ def index():
     return send_from_directory('.', 'index.html')
 
 
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint for UptimeRobot to keep the app alive."""
+    return jsonify({'status': 'ok', 'message': 'App is running'}), 200
+
+
 @app.route('/info', methods=['POST'])
 @limiter.limit("60 per minute")
 def get_info():
@@ -374,4 +380,5 @@ if __name__ == '__main__':
     print("  Architect: Event-Queue Polling (Waitless Frontend)")
     print("  FFMPEG Enabled: Multiplexed high-speed chunks")
     print("=" * 60)
-    app.run(debug=False, host='0.0.0.0', port=5000, threaded=True)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(debug=False, host='0.0.0.0', port=port, threaded=True)
