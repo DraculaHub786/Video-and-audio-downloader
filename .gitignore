@@ -1,0 +1,57 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Packaging and build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Test and coverage artifacts
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# VS Code and editor settings
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment and local config
+.env
+.env.*
+*.local
+
+# Logs and temp files
+*.log
+*.tmp
+*.temp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# FFmpeg binaries and extracted bundles
+ffmpeg_extracted/
+ffmpeg/
+ffmpeg.exe
+ffprobe.exe
+ffplay.exe
+
+# Downloaded media/output files
+downloads/
+output/
+*.part
+*.ytdl
