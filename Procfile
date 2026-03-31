@@ -1,1 +1,1 @@
-web: gunicorn app:app
+web: bash render_deploy.sh

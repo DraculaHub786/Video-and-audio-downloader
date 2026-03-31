@@ -14,6 +14,14 @@ from flask_limiter.util import get_remote_address
 import yt_dlp
 import requests as req_lib
 
+# Keep yt-dlp updated
+try:
+    import subprocess
+    subprocess.run([sys.executable, '-m', 'pip', 'install', '--upgrade', 'yt-dlp'], 
+                   capture_output=True, timeout=30)
+except:
+    pass  # Silent fail if update not possible
+
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "DELETE"], "allow_headers": ["Content-Type"]}})
 
@@ -60,15 +68,18 @@ def safe_name(name):
 
 
 BASE_YDL_INFO_OPTS = {
-    'quiet': True,
-    'no_warnings': True,
+    'quiet': False,
+    'no_warnings': False,
     'skip_download': True,
     'no_check_certificate': True,
     'socket_timeout': 15,
+    'http_headers': {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    },
     'extractor_args': {
         'youtube': {
-            'player_client': ['android', 'android_embedded', 'web', 'web_embedded'],
-            'player_skip': ['js', 'configs']
+            'player_client': ['android', 'android_embedded', 'web', 'web_embedded', 'ios'],
+            'player_skip': ['js', 'configs'],
         }
     },
 }
@@ -163,8 +174,8 @@ def dl_worker(task_id, url, fmt_type, quality):
     ydl_opts = {
         'format': pick_format_string(fmt_type, quality),
         'outtmpl': out_tmpl,
-        'quiet': True,
-        'no_warnings': True,
+        'quiet': False,
+        'no_warnings': False,
         'noplaylist': True,
         'prefer_ffmpeg': True,        
         'ffmpeg_location': '.',       
@@ -172,11 +183,14 @@ def dl_worker(task_id, url, fmt_type, quality):
         'socket_timeout': 30,
         'concurrent_fragment_downloads': 15, 
         'http_chunk_size': 10485760,
-        'hls_prefer_native': False,   
+        'hls_prefer_native': False,
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'android_embedded', 'web', 'web_embedded'],
-                'player_skip': ['js', 'configs']
+                'player_client': ['android', 'android_embedded', 'web', 'web_embedded', 'ios'],
+                'player_skip': ['js', 'configs'],
             }
         },
         'noprogress': True,
