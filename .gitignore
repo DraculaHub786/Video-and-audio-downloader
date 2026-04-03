@@ -33,6 +33,7 @@ htmlcov/
 .env
 .env.*
 *.local
+youtube_cookies.txt
 
 # Logs and temp files
 *.log
@@ -56,3 +57,11 @@ downloads/
 output/
 *.part
 *.ytdl
+
+# Local helper docs (not needed in repo history)
+COMPLETE_FIX.md
+COOKIES_SETUP.md
+DEPLOY_FIX.md
+QUICK_FIX_COOKIES.md
+README_DEPLOY.md
+TROUBLESHOOT.md

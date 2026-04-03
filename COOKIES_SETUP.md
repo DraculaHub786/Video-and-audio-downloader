@@ -59,9 +59,13 @@ YouTube now requires sign-in for MANY videos (not just age-restricted) when acce
    - Select your service
    - Go to: **Environment** tab
    - Click: **Add Environment Variable**
-   - Key: `YOUTUBE_COOKIES_BASE64`
+   - Key: `YOUTUBE_COOKIES_BASE64` *(recommended)*
    - Value: *Paste the base64 string*
    - Click: **Save Changes**
+
+   Compatibility options:
+   - `YOUTUBE_COOKIES_BASE64`: base64-encoded cookie file content (recommended)
+   - `YOUTUBE_COOKIES`: raw Netscape cookie text **or** base64 content (legacy-compatible)
 
 3. **Redeploy:**
    - Render will auto-redeploy
@@ -173,7 +177,7 @@ YouTube cookies expire after **2-6 months**. When they expire:
 
 **Check 1: Cookies are loaded**
 - Render logs should show: `✓ YouTube cookies loaded`
-- If not, check environment variable name: `YOUTUBE_COOKIES_BASE64` (exact)
+- If not, check env variable name (`YOUTUBE_COOKIES_BASE64` preferred, `YOUTUBE_COOKIES` supported)
 
 **Check 2: Cookies are valid**
 - Visit YouTube in browser (same account)
@@ -196,7 +200,7 @@ Your cookies file has wrong format. Use the browser extension, don't create manu
 
 ### Problem: "Works locally but not on Render"
 
-You added `youtube_cookies.txt` file but forgot to set `YOUTUBE_COOKIES_BASE64` in Render. Use Option A above.
+You added `youtube_cookies.txt` file but forgot to set cookies env var in Render. Use `YOUTUBE_COOKIES_BASE64` (recommended) or `YOUTUBE_COOKIES`.
 
 ---
 

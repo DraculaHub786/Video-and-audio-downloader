@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 import tempfile
 import shutil
 import base64
+import binascii
 
 # Fix Unicode on Windows
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
@@ -15,6 +16,11 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import yt_dlp
 import requests as req_lib
+
+try:
+    from yt_dlp.version import __version__ as YT_DLP_VERSION
+except Exception:
+    YT_DLP_VERSION = getattr(yt_dlp, '__version__', 'unknown')
 
 # ── FFMPEG Detection ──
 def find_ffmpeg():
@@ -35,31 +41,62 @@ print(f"[INIT] FFMPEG location: {FFMPEG_LOCATION or 'system PATH'}")
 
 # ── YouTube Cookies Setup ──
 COOKIES_FILE = None
+COOKIES_SOURCE = 'none'
+
+def _decode_cookie_payload(raw_value, assume_base64):
+    """Decode cookie payload as base64 or treat as raw Netscape cookie text."""
+    value = (raw_value or '').strip()
+    if not value:
+        raise ValueError("Cookie payload is empty")
+
+    if not assume_base64:
+        return value
+
+    normalized = ''.join(value.split())
+    padding = '=' * (-len(normalized) % 4)
+    normalized = normalized + padding
+    decoded = base64.b64decode(normalized, validate=False).decode('utf-8')
+    return decoded
 
 def setup_cookies():
     """Setup YouTube cookies from environment variable or file."""
-    global COOKIES_FILE
-    
-    # Try environment variable first (for Render deployment)
-    cookies_b64 = os.environ.get('YOUTUBE_COOKIES_BASE64')
-    if cookies_b64:
-        try:
-            cookies_content = base64.b64decode(cookies_b64).decode('utf-8')
-            cookies_path = os.path.join(tempfile.gettempdir(), 'youtube_cookies.txt')
-            with open(cookies_path, 'w', encoding='utf-8') as f:
-                f.write(cookies_content)
-            COOKIES_FILE = cookies_path
-            print(f"[INIT] ✓ YouTube cookies loaded from environment variable")
-            return
-        except Exception as e:
-            print(f"[INIT] ✗ Failed to decode YOUTUBE_COOKIES_BASE64: {e}")
-    
+    global COOKIES_FILE, COOKIES_SOURCE
+
+    env_candidates = [
+        ('YOUTUBE_COOKIES_BASE64', True),
+        ('YOUTUBE_COOKIES', None),  # supports either raw cookie text or base64
+    ]
+
+    for env_name, base64_hint in env_candidates:
+        env_value = os.environ.get(env_name)
+        if not env_value:
+            continue
+
+        parse_modes = [base64_hint] if base64_hint is not None else [False, True]
+        for assume_base64 in parse_modes:
+            try:
+                cookies_content = _decode_cookie_payload(env_value, assume_base64=assume_base64)
+                if '.youtube.com' not in cookies_content and 'youtube.com' not in cookies_content:
+                    raise ValueError("cookies payload does not look like YouTube cookies")
+
+                cookies_path = os.path.join(tempfile.gettempdir(), 'youtube_cookies.txt')
+                with open(cookies_path, 'w', encoding='utf-8') as f:
+                    f.write(cookies_content)
+                COOKIES_FILE = cookies_path
+                mode = 'base64' if assume_base64 else 'raw'
+                COOKIES_SOURCE = f'env:{env_name}:{mode}'
+                print(f"[INIT] ✓ YouTube cookies loaded from {env_name} ({mode})")
+                return
+            except (ValueError, binascii.Error, UnicodeDecodeError) as e:
+                print(f"[INIT] ⚠ Could not parse {env_name} as {'base64' if assume_base64 else 'raw'}: {e}")
+
     # Try direct file (for local development)
     if os.path.exists('youtube_cookies.txt'):
         COOKIES_FILE = 'youtube_cookies.txt'
+        COOKIES_SOURCE = 'file:youtube_cookies.txt'
         print(f"[INIT] ✓ YouTube cookies found: youtube_cookies.txt")
         return
-    
+
     print(f"[INIT] ⚠ No YouTube cookies found - some videos may fail")
     print(f"[INIT]   To fix: Add YOUTUBE_COOKIES_BASE64 env var in Render")
 
@@ -211,7 +248,9 @@ def health_check():
         'status': 'ok',
         'message': 'App is running',
         'app_version': APP_VERSION,
-        'yt_dlp_version': getattr(yt_dlp, '__version__', 'unknown')
+        'yt_dlp_version': YT_DLP_VERSION,
+        'youtube_cookies_loaded': bool(COOKIES_FILE and os.path.exists(COOKIES_FILE)),
+        'youtube_cookies_source': COOKIES_SOURCE,
     }), 200
 
 
@@ -219,7 +258,9 @@ def health_check():
 def version_check():
     return jsonify({
         'app_version': APP_VERSION,
-        'yt_dlp_version': getattr(yt_dlp, '__version__', 'unknown')
+        'yt_dlp_version': YT_DLP_VERSION,
+        'youtube_cookies_loaded': bool(COOKIES_FILE and os.path.exists(COOKIES_FILE)),
+        'youtube_cookies_source': COOKIES_SOURCE,
     }), 200
 
 

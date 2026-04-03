@@ -28,7 +28,11 @@ else:
 print("\n✓ Checking yt-dlp...")
 try:
     import yt_dlp
-    print(f"  ✅ yt-dlp version: {yt_dlp.__version__}")
+    try:
+        from yt_dlp.version import __version__ as ydl_version
+    except Exception:
+        ydl_version = getattr(yt_dlp, '__version__', 'unknown')
+    print(f"  ✅ yt-dlp version: {ydl_version}")
 except ImportError as e:
     errors.append("yt-dlp not installed")
     print(f"  ❌ Import failed: {e}")
