@@ -5,9 +5,12 @@ echo "========================================="
 echo "StreamGrab Startup Script"
 echo "========================================="
 
+# Ensure Deno is in PATH (installed in build step)
+export PATH="$HOME/.deno/bin:$PATH"
+
 # Update yt-dlp to latest (YouTube changes protections frequently)
 echo "Updating yt-dlp to absolute latest..."
-pip install --force-reinstall --no-cache-dir --upgrade yt-dlp --quiet
+pip install --force-reinstall --no-cache-dir --upgrade "yt-dlp[default]" --quiet
 
 # Ensure ffmpeg is in PATH
 echo "Checking ffmpeg availability..."
@@ -42,7 +45,7 @@ echo "Environment Check:"
 echo "========================================="
 python3 -c "import yt_dlp; from yt_dlp.version import __version__ as v; print(f'✓ yt-dlp version: {v}')" 2>/dev/null || echo "✗ yt-dlp not available"
 ffmpeg -version 2>&1 | head -n 1 | grep -o "version [^ ]*" || echo "✗ ffmpeg version unknown"
-node -v 2>/dev/null && echo "✓ node found at: $(which node)" || echo "⚠ node not available"
+deno --version 2>/dev/null | head -n 1 || echo "⚠ deno not available"
 echo "✓ Python version: $(python3 --version)"
 echo "========================================="
 echo "Starting gunicorn server..."
