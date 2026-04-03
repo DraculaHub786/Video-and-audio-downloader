@@ -13,6 +13,7 @@ apt-get install -y -qq ffmpeg ffprobe curl > /dev/null 2>&1 || echo "Note: Syste
 # Install Deno runtime for YouTube JS challenge solving (yt-dlp EJS)
 echo "Installing Deno runtime..."
 if ! command -v deno &> /dev/null; then
+  export DENO_INSTALL=/usr/local
   curl -fsSL https://deno.land/x/install/install.sh | sh || echo "Note: Deno install failed (JS challenge solving may fail)"
 fi
 

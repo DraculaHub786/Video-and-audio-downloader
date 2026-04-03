@@ -6,7 +6,7 @@ echo "StreamGrab Startup Script"
 echo "========================================="
 
 # Ensure Deno is in PATH (installed in build step)
-export PATH="$HOME/.deno/bin:$PATH"
+export PATH="/usr/local/bin:$HOME/.deno/bin:$PATH"
 
 # Update yt-dlp to latest (YouTube changes protections frequently)
 echo "Updating yt-dlp to absolute latest..."
