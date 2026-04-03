@@ -200,19 +200,28 @@ BASE_YDL_INFO_OPTS = {
         'Accept-Language': 'en-us,en;q=0.5',
         'Sec-Fetch-Mode': 'navigate',
     },
-    'extractor_args': {
-        'youtube': {
-            'player_client': ['android', 'web'],
-            'player_skip': ['webpage', 'configs'],
-            'skip': ['dash', 'hls'],
-        }
-    },
     'age_limit': None,
 }
 
 # Add cookies if available
 if COOKIES_FILE and os.path.exists(COOKIES_FILE):
     BASE_YDL_INFO_OPTS['cookiefile'] = COOKIES_FILE
+    # Use web client when cookies are present (android doesn't support cookies)
+    BASE_YDL_INFO_OPTS['extractor_args'] = {
+        'youtube': {
+            'player_client': ['web'],
+            'player_skip': ['configs'],
+        }
+    }
+else:
+    # Use android client without cookies (faster, bypasses some restrictions)
+    BASE_YDL_INFO_OPTS['extractor_args'] = {
+        'youtube': {
+            'player_client': ['android', 'web'],
+            'player_skip': ['webpage', 'configs'],
+            'skip': ['dash', 'hls'],
+        }
+    }
 
 def pick_format_string(fmt_type, quality):
     """
@@ -337,13 +346,6 @@ def dl_worker(task_id, url, fmt_type, quality):
             'Accept-Language': 'en-us,en;q=0.5',
             'Sec-Fetch-Mode': 'navigate',
         },
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android', 'web'],
-                'player_skip': ['webpage', 'configs'],
-                'skip': ['dash', 'hls'],
-            }
-        },
         'age_limit': None,
         'noprogress': True,
         'skip_unavailable_fragments': True,
@@ -354,6 +356,22 @@ def dl_worker(task_id, url, fmt_type, quality):
     # Add cookies if available
     if COOKIES_FILE and os.path.exists(COOKIES_FILE):
         ydl_opts['cookiefile'] = COOKIES_FILE
+        # Use web client when cookies are present (android doesn't support cookies)
+        ydl_opts['extractor_args'] = {
+            'youtube': {
+                'player_client': ['web'],
+                'player_skip': ['configs'],
+            }
+        }
+    else:
+        # Use android client without cookies (faster, bypasses some restrictions)
+        ydl_opts['extractor_args'] = {
+            'youtube': {
+                'player_client': ['android', 'web'],
+                'player_skip': ['webpage', 'configs'],
+                'skip': ['dash', 'hls'],
+            }
+        }
     
     # Add ffmpeg location if detected
     if FFMPEG_LOCATION:
