@@ -194,6 +194,9 @@ BASE_YDL_INFO_OPTS = {
     'skip_download': True,
     'no_check_certificate': True,
     'socket_timeout': 15,
+    # Enable YouTube JS challenge solving via EJS + Deno
+    'js_runtimes': ['deno'],
+    'remote_components': ['ejs:github'],
     'http_headers': {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -337,6 +340,9 @@ def dl_worker(task_id, url, fmt_type, quality):
         'prefer_ffmpeg': True,
         'no_check_certificate': True,
         'socket_timeout': 30,
+        # Enable YouTube JS challenge solving via EJS + Deno
+        'js_runtimes': ['deno'],
+        'remote_components': ['ejs:github'],
         'concurrent_fragment_downloads': 15, 
         'http_chunk_size': 10485760,
         'hls_prefer_native': False,
