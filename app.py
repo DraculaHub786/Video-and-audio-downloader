@@ -111,6 +111,7 @@ limiter = Limiter(app=app, key_func=get_remote_address,
 
 MAX_SIZE = 700 * 1024 * 1024  # 700 MB
 APP_VERSION = os.environ.get('APP_VERSION', '2026-04-14-hosted-stability-fix')
+ENABLE_YOUTUBE_COOKIES = os.environ.get('ENABLE_YOUTUBE_COOKIES', 'false').strip().lower() in ('1', 'true', 'yes', 'on')
 
 # ── Global Task Dictionary ──
 tasks = {}
@@ -174,19 +175,34 @@ def is_youtube_url(url):
     return host in ('youtube.com', 'm.youtube.com', 'youtu.be')
 
 
-def classify_ydl_error(err):
+def classify_ydl_error(err, url=''):
     msg = (err or '').lower()
     msg = msg.replace('’', "'")
+    host = get_host(url)
+    is_yt = host in ('youtube.com', 'm.youtube.com', 'youtu.be')
+    is_ig = host.endswith('instagram.com')
+
+    if 'http error 429' in msg or 'too many requests' in msg:
+        return 'Platform rate limit hit (HTTP 429). Please wait 2-10 minutes and retry.'
+
+    if is_ig and (
+        'login' in msg or
+        'sign in' in msg or
+        'not a bot' in msg or
+        'challenge' in msg
+    ):
+        return 'Instagram blocked this server request (login/challenge). Wait a few minutes and retry with another public reel.'
+
     if 'private video' in msg or 'members-only' in msg:
         return 'This video is private or members-only.'
-    if (
+    if is_yt and (
         'login' in msg or
         'sign in to confirm your age' in msg or
         'sign in to confirm you\'re not a bot' in msg or
         'not a bot' in msg
     ):
         return 'This video requires account login/age verification, which cloud servers cannot provide.'
-    if (
+    if is_yt and (
         'confirm you\'re not a bot' in msg or
         'failed to extract any player response' in msg or
         'cookies-from-browser' in msg or
@@ -195,8 +211,6 @@ def classify_ydl_error(err):
         return 'YouTube anti-bot check blocked extraction on server. Try again or use another video.'
     if 'requested format is not available' in msg:
         return 'Requested quality is unavailable for this video. Try a lower quality or audio mode.'
-    if 'http error 429' in msg or 'too many requests' in msg:
-        return 'Instagram/host rate limit hit (HTTP 429). Please wait 2-10 minutes and retry.'
     if 'ffmpeg' in msg:
         return 'Server missing FFMPEG. Still deploying.'
     return f"Download failed: {err[:140]}"
@@ -237,7 +251,7 @@ def apply_platform_extractor_profile(opts, url, prefer_cookies=True):
     if not is_yt:
         return opts
 
-    if prefer_cookies and COOKIES_FILE and os.path.exists(COOKIES_FILE):
+    if prefer_cookies and ENABLE_YOUTUBE_COOKIES and COOKIES_FILE and os.path.exists(COOKIES_FILE):
         opts['cookiefile'] = COOKIES_FILE
         opts['extractor_args'] = youtube_extractor_args(use_cookies=True)
     else:
@@ -350,7 +364,7 @@ def get_info():
 
     except Exception as e:
         app.logger.warning(f"Info error: {e}")
-        return jsonify({'error': classify_ydl_error(str(e))}), 400
+        return jsonify({'error': classify_ydl_error(str(e), url=url)}), 400
 
 
 # ── Async Task Worker ──
@@ -494,7 +508,7 @@ def dl_worker(task_id, url, fmt_type, quality):
                 tasks[task_id]['filename'] = file_title
 
     except Exception as e:
-        err_out = classify_ydl_error(str(e))
+        err_out = classify_ydl_error(str(e), url=url)
         with tasks_lock:
             if task_id in tasks:
                 tasks[task_id]['status'] = 'error'
