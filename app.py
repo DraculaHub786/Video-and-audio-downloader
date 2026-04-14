@@ -110,7 +110,7 @@ limiter = Limiter(app=app, key_func=get_remote_address,
                   storage_uri="memory://")
 
 MAX_SIZE = 700 * 1024 * 1024  # 700 MB
-APP_VERSION = os.environ.get('APP_VERSION', '2026-03-31-cookies-fix')
+APP_VERSION = os.environ.get('APP_VERSION', '2026-04-14-hosted-stability-fix')
 
 # ── Global Task Dictionary ──
 tasks = {}
@@ -162,6 +162,18 @@ def normalize_youtube_url(url):
     return url
 
 
+def get_host(url):
+    try:
+        return urlparse(url).netloc.lower().lstrip('www.')
+    except Exception:
+        return ''
+
+
+def is_youtube_url(url):
+    host = get_host(url)
+    return host in ('youtube.com', 'm.youtube.com', 'youtu.be')
+
+
 def classify_ydl_error(err):
     msg = (err or '').lower()
     msg = msg.replace('’', "'")
@@ -183,6 +195,8 @@ def classify_ydl_error(err):
         return 'YouTube anti-bot check blocked extraction on server. Try again or use another video.'
     if 'requested format is not available' in msg:
         return 'Requested quality is unavailable for this video. Try a lower quality or audio mode.'
+    if 'http error 429' in msg or 'too many requests' in msg:
+        return 'Instagram/host rate limit hit (HTTP 429). Please wait 2-10 minutes and retry.'
     if 'ffmpeg' in msg:
         return 'Server missing FFMPEG. Still deploying.'
     return f"Download failed: {err[:140]}"
@@ -208,6 +222,29 @@ def youtube_extractor_args(use_cookies):
     }
 
 
+def apply_platform_extractor_profile(opts, url, prefer_cookies=True):
+    """
+    Apply extractor/cookie settings by platform.
+    - YouTube: cookies+web first (if available), then no-cookie android/web fallback.
+    - Others: avoid forcing YouTube extractor args/cookies.
+    """
+    host = get_host(url)
+    is_yt = host in ('youtube.com', 'm.youtube.com', 'youtu.be')
+
+    opts.pop('extractor_args', None)
+    opts.pop('cookiefile', None)
+
+    if not is_yt:
+        return opts
+
+    if prefer_cookies and COOKIES_FILE and os.path.exists(COOKIES_FILE):
+        opts['cookiefile'] = COOKIES_FILE
+        opts['extractor_args'] = youtube_extractor_args(use_cookies=True)
+    else:
+        opts['extractor_args'] = youtube_extractor_args(use_cookies=False)
+    return opts
+
+
 BASE_YDL_INFO_OPTS = {
     'quiet': False,
     'no_warnings': False,
@@ -221,14 +258,11 @@ BASE_YDL_INFO_OPTS = {
         'Sec-Fetch-Mode': 'navigate',
     },
     'age_limit': None,
+    'format': 'best',
+    'retries': 2,
+    'extractor_retries': 2,
+    'sleep_interval_requests': 1,
 }
-
-# Add cookies if available (with automatic no-cookie fallback in request handlers)
-if COOKIES_FILE and os.path.exists(COOKIES_FILE):
-    BASE_YDL_INFO_OPTS['cookiefile'] = COOKIES_FILE
-    BASE_YDL_INFO_OPTS['extractor_args'] = youtube_extractor_args(use_cookies=True)
-else:
-    BASE_YDL_INFO_OPTS['extractor_args'] = youtube_extractor_args(use_cookies=False)
 
 def pick_format_string(fmt_type, quality):
     """
@@ -236,15 +270,14 @@ def pick_format_string(fmt_type, quality):
     This unlocks YouTube DASH fragmented chunks for multi-concurrency speed.
     """
     if fmt_type == 'audio':
-        return 'bestaudio/best'
+        return 'ba/bestaudio/best'
     else:
         hm = {'best': 2160, '1080': 1080, '720': 720, '480': 480, '360': 360}
         max_h = hm.get(quality, 720)
         return (
-            f'bestvideo[height<={max_h}][ext=mp4]+bestaudio[ext=m4a]/'
-            f'bestvideo[height<={max_h}]+bestaudio/'
-            f'best[height<={max_h}][ext=mp4]/'
-            f'best[height<={max_h}]/'
+            f'bv*[height<={max_h}]+ba/'
+            f'b[height<={max_h}]/'
+            f'bv*+ba/'
             f'best'
         )
 
@@ -293,15 +326,15 @@ def get_info():
 
     try:
         info_opts = dict(BASE_YDL_INFO_OPTS)
+        info_opts = apply_platform_extractor_profile(info_opts, url, prefer_cookies=True)
         try:
             with yt_dlp.YoutubeDL(info_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
         except Exception:
             # If cookies are stale/bad, retry automatically without cookies.
-            if 'cookiefile' not in info_opts:
+            if not is_youtube_url(url) or 'cookiefile' not in info_opts:
                 raise
-            info_opts.pop('cookiefile', None)
-            info_opts['extractor_args'] = youtube_extractor_args(use_cookies=False)
+            info_opts = apply_platform_extractor_profile(info_opts, url, prefer_cookies=False)
             with yt_dlp.YoutubeDL(info_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
 
@@ -367,15 +400,14 @@ def dl_worker(task_id, url, fmt_type, quality):
         'noprogress': True,
         'skip_unavailable_fragments': True,
         'ignoreerrors': False,
+        'retries': 3,
+        'fragment_retries': 3,
+        'extractor_retries': 3,
+        'sleep_interval_requests': 1,
         'progress_hooks': [progress_hook]
     }
     
-    # Add cookies if available; worker retries without cookies automatically if needed.
-    if COOKIES_FILE and os.path.exists(COOKIES_FILE):
-        ydl_opts['cookiefile'] = COOKIES_FILE
-        ydl_opts['extractor_args'] = youtube_extractor_args(use_cookies=True)
-    else:
-        ydl_opts['extractor_args'] = youtube_extractor_args(use_cookies=False)
+    ydl_opts = apply_platform_extractor_profile(ydl_opts, url, prefer_cookies=True)
     
     # Add ffmpeg location if detected
     if FFMPEG_LOCATION:
@@ -405,23 +437,30 @@ def dl_worker(task_id, url, fmt_type, quality):
                 'sign in to confirm your age' in msg or
                 'sign in to confirm you\'re not a bot' in msg or
                 'not a bot' in msg or
-                'requested format is not available' in msg
+                'requested format is not available' in msg or
+                'http error 429' in msg or
+                'too many requests' in msg
             )
             if not retriable:
                 raise
 
             fallback_opts = dict(ydl_opts)
-            # Cookie refresh cannot be automated in cloud; if cookie flow fails, fall back to no-cookie extraction.
-            fallback_opts.pop('cookiefile', None)
-            fallback_opts['extractor_args'] = {
-                'youtube': {
-                    'player_client': ['android_creator', 'android', 'web'],
-                    'player_skip': ['configs', 'webpage'],
+            if 'http error 429' in msg or 'too many requests' in msg:
+                time.sleep(4)
+
+            if is_youtube_url(url):
+                # Cookie refresh cannot be automated in cloud; if cookie flow fails, fall back to no-cookie extraction.
+                fallback_opts = apply_platform_extractor_profile(fallback_opts, url, prefer_cookies=False)
+                fallback_opts['extractor_args'] = {
+                    'youtube': {
+                        'player_client': ['android_creator', 'android', 'web'],
+                        'player_skip': ['configs', 'webpage'],
+                    }
                 }
-            }
             fallback_opts['retries'] = 3
             fallback_opts['fragment_retries'] = 3
             fallback_opts['extractor_retries'] = 3
+            fallback_opts['sleep_interval_requests'] = 2
             with yt_dlp.YoutubeDL(fallback_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 prepared = ydl.prepare_filename(info)
