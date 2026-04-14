@@ -188,6 +188,26 @@ def classify_ydl_error(err):
     return f"Download failed: {err[:140]}"
 
 
+def youtube_extractor_args(use_cookies):
+    """Return yt-dlp YouTube extractor args for cookie/no-cookie profiles."""
+    if use_cookies:
+        # Cookies only work with web client; keep profile conservative.
+        return {
+            'youtube': {
+                'player_client': ['web'],
+                'player_skip': ['configs'],
+            }
+        }
+
+    # Prefer no-cookie profile for cloud reliability (avoids stale-cookie failures).
+    return {
+        'youtube': {
+            'player_client': ['android', 'web'],
+            'player_skip': ['webpage', 'configs'],
+        }
+    }
+
+
 BASE_YDL_INFO_OPTS = {
     'quiet': False,
     'no_warnings': False,
@@ -203,25 +223,12 @@ BASE_YDL_INFO_OPTS = {
     'age_limit': None,
 }
 
-# Add cookies if available
+# Add cookies if available (with automatic no-cookie fallback in request handlers)
 if COOKIES_FILE and os.path.exists(COOKIES_FILE):
     BASE_YDL_INFO_OPTS['cookiefile'] = COOKIES_FILE
-    # Use web client when cookies are present (android doesn't support cookies)
-    BASE_YDL_INFO_OPTS['extractor_args'] = {
-        'youtube': {
-            'player_client': ['web'],
-            'player_skip': ['configs'],
-        }
-    }
+    BASE_YDL_INFO_OPTS['extractor_args'] = youtube_extractor_args(use_cookies=True)
 else:
-    # Use android client without cookies (faster, bypasses some restrictions)
-    BASE_YDL_INFO_OPTS['extractor_args'] = {
-        'youtube': {
-            'player_client': ['android', 'web'],
-            'player_skip': ['webpage', 'configs'],
-            'skip': ['dash', 'hls'],
-        }
-    }
+    BASE_YDL_INFO_OPTS['extractor_args'] = youtube_extractor_args(use_cookies=False)
 
 def pick_format_string(fmt_type, quality):
     """
@@ -285,8 +292,18 @@ def get_info():
     url = normalize_youtube_url(url)
 
     try:
-        with yt_dlp.YoutubeDL(BASE_YDL_INFO_OPTS) as ydl:
-            info = ydl.extract_info(url, download=False)
+        info_opts = dict(BASE_YDL_INFO_OPTS)
+        try:
+            with yt_dlp.YoutubeDL(info_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+        except Exception:
+            # If cookies are stale/bad, retry automatically without cookies.
+            if 'cookiefile' not in info_opts:
+                raise
+            info_opts.pop('cookiefile', None)
+            info_opts['extractor_args'] = youtube_extractor_args(use_cookies=False)
+            with yt_dlp.YoutubeDL(info_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
 
         dur = int(info.get('duration') or 0)
         return jsonify({
@@ -353,25 +370,12 @@ def dl_worker(task_id, url, fmt_type, quality):
         'progress_hooks': [progress_hook]
     }
     
-    # Add cookies if available
+    # Add cookies if available; worker retries without cookies automatically if needed.
     if COOKIES_FILE and os.path.exists(COOKIES_FILE):
         ydl_opts['cookiefile'] = COOKIES_FILE
-        # Use web client when cookies are present (android doesn't support cookies)
-        ydl_opts['extractor_args'] = {
-            'youtube': {
-                'player_client': ['web'],
-                'player_skip': ['configs'],
-            }
-        }
+        ydl_opts['extractor_args'] = youtube_extractor_args(use_cookies=True)
     else:
-        # Use android client without cookies (faster, bypasses some restrictions)
-        ydl_opts['extractor_args'] = {
-            'youtube': {
-                'player_client': ['android', 'web'],
-                'player_skip': ['webpage', 'configs'],
-                'skip': ['dash', 'hls'],
-            }
-        }
+        ydl_opts['extractor_args'] = youtube_extractor_args(use_cookies=False)
     
     # Add ffmpeg location if detected
     if FFMPEG_LOCATION:
@@ -400,16 +404,19 @@ def dl_worker(task_id, url, fmt_type, quality):
                 'confirm you\'re not a bot' in msg or
                 'sign in to confirm your age' in msg or
                 'sign in to confirm you\'re not a bot' in msg or
-                'not a bot' in msg
+                'not a bot' in msg or
+                'requested format is not available' in msg
             )
             if not retriable:
                 raise
 
             fallback_opts = dict(ydl_opts)
+            # Cookie refresh cannot be automated in cloud; if cookie flow fails, fall back to no-cookie extraction.
+            fallback_opts.pop('cookiefile', None)
             fallback_opts['extractor_args'] = {
                 'youtube': {
                     'player_client': ['android_creator', 'android', 'web'],
-                    'player_skip': ['configs'],
+                    'player_skip': ['configs', 'webpage'],
                 }
             }
             fallback_opts['retries'] = 3
