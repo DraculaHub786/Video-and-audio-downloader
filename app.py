@@ -48,6 +48,9 @@ print(f"[INIT] FFMPEG location: {FFMPEG_LOCATION or 'system PATH'}")
 COOKIES_FILE = None
 COOKIES_SOURCE = 'none'
 
+MAX_COOKIE_PAYLOAD_BYTES = 300_000  # hard safety limit (decoded)
+
+
 def _decode_cookie_payload(raw_value, assume_base64):
     """Decode cookie payload as base64 or treat as raw Netscape cookie text."""
     value = (raw_value or '').strip()
@@ -60,8 +63,45 @@ def _decode_cookie_payload(raw_value, assume_base64):
     normalized = ''.join(value.split())
     padding = '=' * (-len(normalized) % 4)
     normalized = normalized + padding
-    decoded = base64.b64decode(normalized, validate=False).decode('utf-8')
+    decoded = base64.b64decode(normalized, validate=False).decode('utf-8', errors='replace')
     return decoded
+
+
+def _looks_like_netscape_cookie_file(text):
+    t = (text or '')
+    if '# Netscape HTTP Cookie File' in t:
+        return True
+    # Fallback: accept if it contains common YouTube cookie markers
+    return ('.youtube.com' in t) or ('youtube.com' in t)
+
+
+def write_temp_cookiefile_from_payload(raw_value, base64_hint=None, prefix='yt_user_cookies_'):
+    """Create a temp cookies.txt file and return its path. Caller must delete it."""
+    if not raw_value:
+        return None
+
+    parse_modes = [base64_hint] if base64_hint is not None else [False, True]
+    last_err = None
+
+    for assume_base64 in parse_modes:
+        try:
+            cookies_content = _decode_cookie_payload(raw_value, assume_base64=assume_base64)
+            if not _looks_like_netscape_cookie_file(cookies_content):
+                raise ValueError('payload does not look like a cookies.txt file')
+
+            encoded = cookies_content.encode('utf-8', errors='replace')
+            if len(encoded) > MAX_COOKIE_PAYLOAD_BYTES:
+                raise ValueError('cookie payload too large')
+
+            cookies_path = os.path.join(tempfile.gettempdir(), f"{prefix}{uuid.uuid4().hex}.txt")
+            with open(cookies_path, 'w', encoding='utf-8') as f:
+                f.write(cookies_content)
+            return cookies_path
+        except (ValueError, binascii.Error, UnicodeDecodeError) as e:
+            last_err = e
+
+    raise ValueError(str(last_err) if last_err else 'Invalid cookie payload')
+
 
 def setup_cookies():
     """Setup YouTube cookies from environment variable or file."""
@@ -80,13 +120,14 @@ def setup_cookies():
         parse_modes = [base64_hint] if base64_hint is not None else [False, True]
         for assume_base64 in parse_modes:
             try:
-                cookies_content = _decode_cookie_payload(env_value, assume_base64=assume_base64)
-                if '.youtube.com' not in cookies_content and 'youtube.com' not in cookies_content:
-                    raise ValueError("cookies payload does not look like YouTube cookies")
+                cookies_path = write_temp_cookiefile_from_payload(
+                    env_value,
+                    base64_hint=assume_base64,
+                    prefix='yt_env_cookies_',
+                )
+                if not cookies_path:
+                    continue
 
-                cookies_path = os.path.join(tempfile.gettempdir(), 'youtube_cookies.txt')
-                with open(cookies_path, 'w', encoding='utf-8') as f:
-                    f.write(cookies_content)
                 COOKIES_FILE = cookies_path
                 mode = 'base64' if assume_base64 else 'raw'
                 COOKIES_SOURCE = f'env:{env_name}:{mode}'
@@ -104,6 +145,7 @@ def setup_cookies():
 
     print(f"[INIT] ⚠ No YouTube cookies found - some videos may fail")
     print(f"[INIT]   To fix: Add YOUTUBE_COOKIES_BASE64 env var in Render")
+
 
 setup_cookies()
 
@@ -123,8 +165,10 @@ if NETWORK_PROXY_URL:
     for env_name in ('ALL_PROXY', 'HTTPS_PROXY', 'HTTP_PROXY'):
         os.environ.setdefault(env_name, NETWORK_PROXY_URL)
     print('[INIT] ✓ Outbound proxy enabled for downloads')
-YOUTUBE_CLIENTS_WITH_COOKIES = [c.strip() for c in os.environ.get('YTDLP_YOUTUBE_CLIENTS_WITH_COOKIES', 'web,mweb,ios').split(',') if c.strip()]
-YOUTUBE_CLIENTS_WITHOUT_COOKIES = [c.strip() for c in os.environ.get('YTDLP_YOUTUBE_CLIENTS_WITHOUT_COOKIES', 'android,web,mweb,ios').split(',') if c.strip()]
+# Prefer tokenless clients by default. Token-requiring clients can be enabled explicitly
+# via environment variables when a PO token provider or trusted session is available.
+YOUTUBE_CLIENTS_WITH_COOKIES = [c.strip() for c in os.environ.get('YTDLP_YOUTUBE_CLIENTS_WITH_COOKIES', 'tv,web_embedded,web_safari').split(',') if c.strip()]
+YOUTUBE_CLIENTS_WITHOUT_COOKIES = [c.strip() for c in os.environ.get('YTDLP_YOUTUBE_CLIENTS_WITHOUT_COOKIES', 'tv,web_embedded,web_safari,tv_simply').split(',') if c.strip()]
 YOUTUBE_COOKIES_AVAILABLE = bool(COOKIES_FILE and os.path.exists(COOKIES_FILE))
 YOUTUBE_COOKIES_HEALTHY = YOUTUBE_COOKIES_AVAILABLE
 YOUTUBE_COOKIES_LOCK = threading.Lock()
@@ -247,20 +291,29 @@ def classify_ydl_error(err, url=''):
 
     if 'private video' in msg or 'members-only' in msg:
         return 'This video is private or members-only.'
+
     if is_yt and (
         'login' in msg or
         'sign in to confirm your age' in msg or
         'sign in to confirm you\'re not a bot' in msg or
         'not a bot' in msg
     ):
-        return 'This video requires account login/age verification, which cloud servers cannot provide.'
+        if should_use_youtube_cookies():
+            if not YOUTUBE_COOKIES_HEALTHY:
+                return 'YouTube cookies look expired/invalid. Refresh cookies and redeploy, or upload your own cookies in Advanced Options.'
+            return 'YouTube requires sign-in/age verification for this video. If it still fails, upload your own cookies in Advanced Options.'
+        return 'YouTube is requiring sign-in/age verification from this server IP. Upload your own cookies.txt in Advanced Options (recommended) or use a different video.'
+
     if is_yt and (
         'confirm you\'re not a bot' in msg or
         'failed to extract any player response' in msg or
         'cookies-from-browser' in msg or
         '--cookies' in msg
     ):
-        return 'YouTube anti-bot check blocked extraction on server. Try again or use another video.'
+        if should_use_youtube_cookies():
+            return 'YouTube anti-bot check blocked extraction. Try again; if it persists, refresh cookies or upload your own cookies in Advanced Options.'
+        return 'YouTube anti-bot check blocked extraction from this server IP. Upload your own cookies.txt in Advanced Options or try another video.'
+
     if 'no supported javascript runtime could be found' in msg:
         return 'Server JavaScript runtime for YouTube extraction is unavailable. Try again later.'
     if 'requested format is not available' in msg:
@@ -314,11 +367,13 @@ def mark_youtube_cookies_unhealthy(reason):
             print(f"[INIT] ⚠ Disabling YouTube cookies for this process: {reason[:160]}")
 
 
-def apply_platform_extractor_profile(opts, url, prefer_cookies=True, client_override=None):
-    """
-    Apply extractor/cookie settings by platform.
-    - YouTube: cookies+web first (if available), then no-cookie android/web/mweb fallback.
-    - Others: avoid forcing YouTube extractor args/cookies.
+def apply_platform_extractor_profile(opts, url, prefer_cookies=True, client_override=None, cookiefile_override=None):
+    """Apply extractor/cookie settings by platform.
+
+    Notes:
+    - For YouTube, we optionally attach a cookies.txt file (either the server's env cookies
+      or a per-request user-supplied cookies file).
+    - For non-YouTube, we avoid forcing YouTube extractor args/cookies.
     """
     host = get_host(url)
     is_yt = host in ('youtube.com', 'm.youtube.com', 'youtu.be')
@@ -331,15 +386,18 @@ def apply_platform_extractor_profile(opts, url, prefer_cookies=True, client_over
 
     if client_override:
         clients = [client for client in client_override if client]
-    elif prefer_cookies and should_use_youtube_cookies():
+    elif prefer_cookies and (cookiefile_override or should_use_youtube_cookies()):
         clients = YOUTUBE_CLIENTS_WITH_COOKIES
     else:
         clients = YOUTUBE_CLIENTS_WITHOUT_COOKIES
 
     opts['extractor_args'] = youtube_extractor_args(clients)
 
-    if prefer_cookies and should_use_youtube_cookies():
-        opts['cookiefile'] = COOKIES_FILE
+    if prefer_cookies:
+        if cookiefile_override and os.path.exists(cookiefile_override):
+            opts['cookiefile'] = cookiefile_override
+        elif should_use_youtube_cookies():
+            opts['cookiefile'] = COOKIES_FILE
 
     return opts
 
@@ -382,6 +440,12 @@ BASE_YDL_INFO_OPTS = {
     'retries': 2,
     'extractor_retries': 2,
     'sleep_interval_requests': 1,
+    'http_headers': {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-us,en;q=0.5',
+        'Sec-Fetch-Mode': 'navigate',
+    },
 }
 
 def pick_format_string(fmt_type, quality):
@@ -403,29 +467,76 @@ def pick_format_string(fmt_type, quality):
 
 
 def build_youtube_profile_sequence():
+    """
+    Build a YouTube fallback ladder that prefers clients known to work without
+    PO tokens, then optionally enables legacy clients when explicitly requested.
+    """
     profiles = []
+
+    # Cookie-backed paths are tried first for age-gated or account-sensitive videos.
+    # They still use tokenless clients so they don't immediately fall into the current
+    # YouTube PO-token enforcement path.
     if should_use_youtube_cookies():
-        profiles.append({
-            'name': 'cookie-web',
-            'use_cookies': True,
-            'clients': ['web'],
-        })
+        profiles.extend([
+            {
+                'name': 'cookie-tv',
+                'use_cookies': True,
+                'clients': ['tv'],
+            },
+            {
+                'name': 'cookie-embed',
+                'use_cookies': True,
+                'clients': ['web_embedded'],
+            },
+            {
+                'name': 'cookie-web-safari',
+                'use_cookies': True,
+                'clients': ['web_safari'],
+            },
+        ])
+
     profiles.extend([
         {
-            'name': 'public-android',
+            'name': 'public-tv',
             'use_cookies': False,
-            'clients': ['android', 'web', 'mweb', 'ios'],
+            'clients': ['tv'],
         },
         {
-            'name': 'public-web',
+            'name': 'public-embed',
             'use_cookies': False,
-            'clients': ['web', 'android', 'mweb', 'ios'],
+            'clients': ['web_embedded'],
+        },
+        {
+            'name': 'public-web-safari',
+            'use_cookies': False,
+            'clients': ['web_safari'],
+        },
+        {
+            'name': 'public-tv-simply',
+            'use_cookies': False,
+            'clients': ['tv_simply'],
         },
     ])
+
+    enable_legacy_clients = os.environ.get('YTDLP_ENABLE_LEGACY_YOUTUBE_CLIENTS', '0').strip().lower() in ('1', 'true', 'yes', 'on')
+    if enable_legacy_clients:
+        profiles.extend([
+            {
+                'name': 'legacy-web',
+                'use_cookies': False,
+                'clients': ['web'],
+            },
+            {
+                'name': 'legacy-mweb',
+                'use_cookies': False,
+                'clients': ['mweb'],
+            },
+        ])
+
     return profiles
 
 
-def run_ytdlp_with_fallback(url, base_opts, download=False):
+def run_ytdlp_with_fallback(url, base_opts, download=False, cookiefile_override=None):
     profiles = build_youtube_profile_sequence() if is_youtube_url(url) else [{
         'name': 'generic',
         'use_cookies': False,
@@ -434,13 +545,25 @@ def run_ytdlp_with_fallback(url, base_opts, download=False):
 
     last_error = None
 
+    # If we have no cookies at all, don't spam many YouTube client attempts when the
+    # failure is clearly "sign in / not a bot". That pattern quickly turns into 429.
+    has_any_cookies = bool(
+        (cookiefile_override and os.path.exists(cookiefile_override))
+        or should_use_youtube_cookies()
+    )
+    max_auth_attempts_without_cookies = 2
+    auth_failures = 0
+
     for index, profile in enumerate(profiles):
+        use_cookiefile = cookiefile_override if profile['use_cookies'] else None
+
         opts = dict(base_opts)
         opts = apply_platform_extractor_profile(
             opts,
             url,
             prefer_cookies=profile['use_cookies'],
             client_override=profile['clients'],
+            cookiefile_override=use_cookiefile,
         )
         opts = apply_ytdlp_transport_profile(opts)
         opts = apply_network_proxy_profile(opts)
@@ -454,8 +577,16 @@ def run_ytdlp_with_fallback(url, base_opts, download=False):
             last_error = str(exc)
             normalized = normalize_ydl_error_message(last_error)
 
-            if profile['use_cookies'] and is_youtube_auth_error(last_error, url=url):
+            is_authish = is_youtube_auth_error(last_error, url=url)
+
+            # Only mark the *server* cookies unhealthy, not per-user uploaded cookies.
+            if profile['use_cookies'] and is_authish and not cookiefile_override:
                 mark_youtube_cookies_unhealthy(last_error)
+
+            if is_youtube_url(url) and not has_any_cookies and is_authish:
+                auth_failures += 1
+                if auth_failures >= max_auth_attempts_without_cookies:
+                    raise
 
             if is_youtube_url(url) and index < len(profiles) - 1:
                 if any(token in normalized for token in ('private video', 'members-only', 'video unavailable')):
@@ -480,6 +611,18 @@ def run_ytdlp_with_fallback(url, base_opts, download=False):
 @app.route('/')
 def index():
     return send_from_directory('.', 'index.html')
+
+
+@app.route('/local-agent', methods=['GET'])
+def download_local_agent():
+    """Provide the local helper script for end users."""
+    return send_from_directory('.', 'local_agent.py', as_attachment=True)
+
+
+@app.route('/local-agent-requirements', methods=['GET'])
+def download_local_requirements():
+    """Provide requirements.txt for the local helper."""
+    return send_from_directory('.', 'requirements.txt', as_attachment=True)
 
 
 @app.route('/health', methods=['GET'])
@@ -518,9 +661,20 @@ def get_info():
         return jsonify({'error': url}), 400
     url = normalize_youtube_url(url)
 
+    cookiefile = None
     try:
+        # Optional per-request user cookies (never persisted; written to a temp file and deleted).
+        user_cookie_b64 = (data.get('youtube_cookies_base64') or '').strip()
+        user_cookie_raw = (data.get('youtube_cookies') or '').strip()
+        if user_cookie_b64 or user_cookie_raw:
+            cookiefile = write_temp_cookiefile_from_payload(
+                user_cookie_b64 or user_cookie_raw,
+                base64_hint=True if user_cookie_b64 else None,
+                prefix='yt_req_info_',
+            )
+
         info_opts = dict(BASE_YDL_INFO_OPTS)
-        info, _, _ = run_ytdlp_with_fallback(url, info_opts, download=False)
+        info, _, _ = run_ytdlp_with_fallback(url, info_opts, download=False, cookiefile_override=cookiefile)
 
         dur = int(info.get('duration') or 0)
         return jsonify({
@@ -535,10 +689,16 @@ def get_info():
     except Exception as e:
         app.logger.warning(f"Info error: {e}")
         return jsonify({'error': classify_ydl_error(str(e), url=url)}), 400
+    finally:
+        if cookiefile and os.path.exists(cookiefile):
+            try:
+                os.remove(cookiefile)
+            except Exception:
+                pass
 
 
 # ── Async Task Worker ──
-def dl_worker(task_id, url, fmt_type, quality):
+def dl_worker(task_id, url, fmt_type, quality, user_cookiefile=None):
     with tasks_lock:
         if task_id not in tasks:
             return
@@ -592,7 +752,7 @@ def dl_worker(task_id, url, fmt_type, quality):
         'progress_hooks': [progress_hook]
     }
 
-    ydl_opts = apply_platform_extractor_profile(ydl_opts, url, prefer_cookies=True)
+    ydl_opts = apply_platform_extractor_profile(ydl_opts, url, prefer_cookies=True, cookiefile_override=user_cookiefile)
     ydl_opts = apply_ytdlp_transport_profile(ydl_opts)
     ydl_opts = apply_network_proxy_profile(ydl_opts)
 
@@ -611,7 +771,12 @@ def dl_worker(task_id, url, fmt_type, quality):
 
     try:
         try:
-            info, prepared, profile_name = run_ytdlp_with_fallback(url, ydl_opts, download=True)
+            info, prepared, profile_name = run_ytdlp_with_fallback(
+                url,
+                ydl_opts,
+                download=True,
+                cookiefile_override=user_cookiefile,
+            )
         except Exception as first_err:
             raise first_err
 
@@ -651,6 +816,12 @@ def dl_worker(task_id, url, fmt_type, quality):
             if task_id in tasks:
                 tasks[task_id]['status'] = 'error'
                 tasks[task_id]['error']  = err_out
+    finally:
+        if user_cookiefile and os.path.exists(user_cookiefile):
+            try:
+                os.remove(user_cookiefile)
+            except Exception:
+                pass
 
 
 @app.route('/start_download', methods=['POST'])
@@ -668,6 +839,21 @@ def start_download():
     if fmt_type not in ('video', 'audio'):
         return jsonify({'error': 'Invalid format'}), 400
 
+    # Optional per-request user cookies (base64 preferred). This enables age/login-gated
+    # YouTube videos without storing credentials server-side.
+    user_cookiefile = None
+    user_cookie_b64 = (data.get('youtube_cookies_base64') or '').strip()
+    user_cookie_raw = (data.get('youtube_cookies') or '').strip()
+    if user_cookie_b64 or user_cookie_raw:
+        try:
+            user_cookiefile = write_temp_cookiefile_from_payload(
+                user_cookie_b64 or user_cookie_raw,
+                base64_hint=True if user_cookie_b64 else None,
+                prefix='yt_req_dl_',
+            )
+        except Exception as e:
+            return jsonify({'error': f'Invalid cookies.txt payload: {str(e)[:120]}'}), 400
+
     task_id = str(uuid.uuid4())
     with tasks_lock:
         tasks[task_id] = {
@@ -680,7 +866,7 @@ def start_download():
             'extractor_profile': None,
         }
 
-    thread = threading.Thread(target=dl_worker, args=(task_id, url, fmt_type, quality))
+    thread = threading.Thread(target=dl_worker, args=(task_id, url, fmt_type, quality, user_cookiefile))
     thread.daemon = True
     thread.start()
 
@@ -772,10 +958,20 @@ def get_subtitles():
         return jsonify({'error': url}), 400
     url = normalize_youtube_url(url)
 
+    cookiefile = None
     opts = dict(BASE_YDL_INFO_OPTS)
 
     try:
-        info, _, _ = run_ytdlp_with_fallback(url, opts, download=False)
+        user_cookie_b64 = (data.get('youtube_cookies_base64') or '').strip()
+        user_cookie_raw = (data.get('youtube_cookies') or '').strip()
+        if user_cookie_b64 or user_cookie_raw:
+            cookiefile = write_temp_cookiefile_from_payload(
+                user_cookie_b64 or user_cookie_raw,
+                base64_hint=True if user_cookie_b64 else None,
+                prefix='yt_req_subs_',
+            )
+
+        info, _, _ = run_ytdlp_with_fallback(url, opts, download=False, cookiefile_override=cookiefile)
     except Exception as e:
         err = str(e)
         app.logger.warning(f"Subtitle info error: {err}")
@@ -787,6 +983,12 @@ def get_subtitles():
         )):
             return jsonify({'error': 'No subtitles available for this video.'}), 404
         return jsonify({'error': classify_ydl_error(err, url=url)}), 400
+    finally:
+        if cookiefile and os.path.exists(cookiefile):
+            try:
+                os.remove(cookiefile)
+            except Exception:
+                pass
 
     subs = info.get('subtitles') or {}
     auto = info.get('automatic_captions') or {}

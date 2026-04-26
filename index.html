@@ -220,6 +220,26 @@
         .alert.err { background:rgba(239,68,68,.14); color:#f87171; border:1px solid rgba(239,68,68,.3); }
         .alert.wrn { background:rgba(245,158,11,.14);color:#fbbf24;border:1px solid rgba(245,158,11,.3); }
 
+        /* ── Local helper ─────────────────────────────────── */
+        .helper {
+            margin-bottom:18px;padding:16px;
+            background:var(--surface2);
+            border:1px dashed var(--border-hi);
+            border-radius:14px;
+        }
+        .helper-row { display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap; }
+        .helper-title { font-size:13px;font-weight:700;letter-spacing:.04em; }
+        .helper-status { font-size:12px;color:var(--text-sub);display:flex;align-items:center;gap:8px; }
+        .helper-dot {
+            width:8px;height:8px;border-radius:50%;
+            background:var(--amber);box-shadow:0 0 8px rgba(245,158,11,.45);
+        }
+        .helper-dot.ok { background:var(--green); box-shadow:0 0 8px rgba(16,185,129,.45); }
+        .helper-desc { margin-top:8px;font-size:12px;color:var(--text-dim);line-height:1.5; }
+        .helper-actions { margin-top:12px;display:flex;gap:10px;flex-wrap:wrap; }
+        .helper-steps { margin-top:10px;font-size:12px;color:var(--text-sub);line-height:1.6; }
+        .helper-steps code { background:var(--surface3);padding:2px 6px;border-radius:6px; }
+
         /* ── Preview ─────────────────────────────────────── */
         .preview {
             display:none;align-items:center;gap:16px;
@@ -341,7 +361,7 @@
     <!-- Hero -->
     <div class="hero">
         <h1>Download <span class="grad">any video</span><br>in seconds</h1>
-        <p>YouTube · Shorts · TikTok · Instagram · Twitter &amp; 1000+ more<br>No login. No ads. Lightning fast.</p>
+        <p>YouTube · Shorts · TikTok · Instagram · Twitter &amp; 1000+ more<br>No signup for this site. No ads. Lightning fast.</p>
     </div>
 
     <!-- Main card -->
@@ -351,6 +371,28 @@
         <div class="alert ok"  id="aOk" ><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span id="aOkMsg"></span></div>
         <div class="alert err" id="aErr"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span id="aErrMsg"></span></div>
         <div class="alert wrn" id="aWrn"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span id="aWrnMsg"></span></div>
+
+        <!-- Local helper -->
+        <div class="helper" id="localHelperBox">
+            <div class="helper-row">
+                <div class="helper-title">LOCAL HELPER</div>
+                <div class="helper-status">
+                    <span class="helper-dot" id="localHelperDot"></span>
+                    <span id="localHelperStatus">Checking local helper…</span>
+                </div>
+            </div>
+            <div class="helper-desc">
+                Downloads run on your device for reliability (no cloud IP blocks). Start the local helper once and keep it open.
+            </div>
+            <div class="helper-actions">
+                <a class="btn-paste" href="/local-agent" id="downloadHelperBtn">Download local_agent.py</a>
+                <a class="btn-paste" href="/local-agent-requirements">requirements.txt</a>
+                <button class="btn-paste" type="button" id="checkLocalBtn">Check Again</button>
+            </div>
+            <div class="helper-steps" id="localHelperHint">
+                1. Install Python 3.10+  2. Install deps: <code>pip install -r requirements.txt</code>  3. Run: <code>python local_agent.py</code>
+            </div>
+        </div>
 
         <!-- URL -->
         <label class="lbl" for="videoUrl">Paste URL</label>
@@ -428,6 +470,18 @@
                     </div>
                     <label class="switch"><input type="checkbox" id="optSubs"><span class="slider"></span></label>
                 </div>
+
+                <div class="tog-row" style="align-items:flex-start;gap:14px">
+                    <div class="tog-info" style="gap:6px">
+                        <div class="tog-lbl">🔐 YouTube cookies (optional)</div>
+                        <div class="tog-desc">
+                            Some YouTube videos are blocked on cloud IPs ("Sign in to confirm you're not a bot").
+                            Upload your own exported <b>cookies.txt</b> to enable those videos. The file is used only for this request.
+                        </div>
+                        <input id="ytCookiesFile" type="file" accept=".txt" style="margin-top:6px;color:var(--text-sub)">
+                        <div id="ytCookiesHint" class="tog-desc" style="margin-top:6px;display:none">✓ cookies.txt loaded for this session</div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -477,8 +531,8 @@
     <div class="feats">
         <div class="feat">
             <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
-            <h3>Streaming Proxy</h3>
-            <p>Data flows directly from CDN to your device — no temp files, starts in seconds.</p>
+            <h3>Local Helper</h3>
+            <p>Downloads run on your device/IP, avoiding cloud bot blocks and keeping data local.</p>
         </div>
         <div class="feat">
             <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
@@ -487,8 +541,8 @@
         </div>
         <div class="feat">
             <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
-            <h3>No Login Needed</h3>
-            <p>100% free. No accounts, no tracking, no limits on personal use.</p>
+            <h3>No Signup Needed</h3>
+            <p>Run the helper once, then download from 1000+ platforms with one click.</p>
         </div>
     </div>
 
@@ -501,10 +555,17 @@
 <script>
 'use strict';
 
-const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'http://localhost:5000' : window.location.origin;
+const LOCAL_AGENT_CANDIDATES = ['http://127.0.0.1:9797', 'http://localhost:9797'];
+let API = LOCAL_AGENT_CANDIDATES[0];
+let localHelperReady = false;
 
 let currentFmt = 'video';
+let youtubeCookiesB64 = '';
+
+function toBase64Utf8(str){
+    // btoa is Latin1-only; this makes it safe for UTF-8 text
+    return btoa(unescape(encodeURIComponent(str)));
+}
 
 // ── Paste ────────────────────────────────────────────────
 document.getElementById('pasteBtn').addEventListener('click', async () => {
@@ -533,6 +594,67 @@ document.getElementById('advHdr').addEventListener('click', () => {
     document.getElementById('advBody').classList.toggle('open');
 });
 
+// ── Local helper detection ────────────────────────────────
+async function checkLocalHelper(){
+    const dot = document.getElementById('localHelperDot');
+    const status = document.getElementById('localHelperStatus');
+    const hint = document.getElementById('localHelperHint');
+    for(const candidate of LOCAL_AGENT_CANDIDATES){
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 900);
+        try{
+            const r = await fetch(candidate + '/health', {cache:'no-store', signal: ctrl.signal});
+            if(r.ok){
+                API = candidate;
+                localHelperReady = true;
+                if(dot) dot.classList.add('ok');
+                if(status) status.textContent = 'Local helper connected';
+                if(hint) hint.style.display = 'none';
+                setBtn(false);
+                return;
+            }
+        }catch(_){ /* ignore */ }
+        finally { clearTimeout(t); }
+    }
+
+    localHelperReady = false;
+    if(dot) dot.classList.remove('ok');
+    if(status) status.textContent = 'Local helper not detected';
+    if(hint) hint.style.display = '';
+    setBtn(false);
+}
+
+document.getElementById('checkLocalBtn').addEventListener('click', () => {
+    checkLocalHelper();
+});
+
+// ── Optional YouTube cookies upload ───────────────────────
+const cookieInput = document.getElementById('ytCookiesFile');
+if(cookieInput){
+    cookieInput.addEventListener('change', async (e) => {
+        youtubeCookiesB64 = '';
+        const hint = document.getElementById('ytCookiesHint');
+        if(hint) hint.style.display = 'none';
+
+        const file = e.target.files && e.target.files[0];
+        if(!file) return;
+        if(file.size > 300000){
+            showErr('cookies.txt is too large. Please export a standard cookies.txt file and retry.');
+            cookieInput.value = '';
+            return;
+        }
+        try{
+            const text = await file.text();
+            youtubeCookiesB64 = toBase64Utf8(text);
+            if(hint) hint.style.display = '';
+            showWrn('YouTube cookies loaded. They will be sent only for your download request.');
+        }catch(_){
+            showErr('Could not read cookies.txt.');
+            cookieInput.value = '';
+        }
+    });
+}
+
 // ── Helpers ──────────────────────────────────────────────
 function hideAlerts(){
     ['aOk','aErr','aWrn'].forEach(id => document.getElementById(id).classList.remove('show'));
@@ -559,18 +681,22 @@ function hideProgress(){
 
 function setBtn(loading){
     const btn = document.getElementById('dlBtn');
-    btn.disabled = loading;
+    btn.disabled = loading || !localHelperReady;
     if(loading){
         btn.innerHTML = '<div class="spin"></div><span>Working… please wait</span>';
     } else {
         const label = currentFmt === 'audio' ? 'Audio' : 'Video';
-        btn.innerHTML = `
-            <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            <span id="dlBtnTxt">Download ${label}</span>`;
+        if(!localHelperReady){
+            btn.innerHTML = `<span>Start Local Helper</span>`;
+        } else {
+            btn.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                <span id="dlBtnTxt">Download ${label}</span>`;
+        }
     }
 }
 
@@ -601,6 +727,10 @@ document.getElementById('dlBtn').addEventListener('click', async () => {
     const wantSubs  = document.getElementById('optSubs').checked;
 
     if(!url){ showErr('Please enter a URL first.'); return; }
+    if(!localHelperReady){
+        showErr('Local helper not detected. Download and run local_agent.py, then click Check Again.');
+        return;
+    }
 
     hideAlerts();
     document.getElementById('preview').classList.remove('show');
@@ -610,7 +740,10 @@ document.getElementById('dlBtn').addEventListener('click', async () => {
     setProgress('Fetching video info…', 8);
     let thumbUrl = '';
     try {
-        const r = await postJSON('/info', {url});
+        const r = await postJSON('/info', {
+            url,
+            youtube_cookies_base64: youtubeCookiesB64 || undefined,
+        });
         if(r.ok){
             const info = await r.json();
             thumbUrl = info.thumbnail;
@@ -633,8 +766,14 @@ document.getElementById('dlBtn').addEventListener('click', async () => {
         dlRes = await fetch(API + '/start_download', {
             method: 'POST',
             headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({url, format: currentFmt, quality,
-                                  subtitles: wantSubs, thumbnail: wantThumb})
+            body: JSON.stringify({
+                url,
+                format: currentFmt,
+                quality,
+                subtitles: wantSubs,
+                thumbnail: wantThumb,
+                youtube_cookies_base64: youtubeCookiesB64 || undefined,
+            })
         });
     } catch(e){
         hideProgress(); setBtn(false); showErr('Cannot reach the server. Is it running?');
@@ -654,7 +793,7 @@ document.getElementById('dlBtn').addEventListener('click', async () => {
     // ── 3. Poll for status ──────────────────────────────
     setProgress('Server processing…', 2);
     
-    const maxPolls = 600; // max 5 mins
+    const maxPolls = 300; // max 5 mins (1s polling)
     let polls = 0;
     
     // Create an inline async poll function
@@ -663,7 +802,7 @@ document.getElementById('dlBtn').addEventListener('click', async () => {
 
     while (polls < maxPolls) {
         polls++;
-        await wait(500);
+        await wait(1000);
         
         try {
             const statRes = await fetch(`${API}/status/${taskId}`);
@@ -725,7 +864,10 @@ document.getElementById('dlBtn').addEventListener('click', async () => {
     if(wantSubs){
         extraJobs.push((async () => {
             try {
-                const sr = await postJSON('/subtitles', {url});
+                const sr = await postJSON('/subtitles', {
+                    url,
+                    youtube_cookies_base64: youtubeCookiesB64 || undefined,
+                });
                 if(sr.ok){
                     const sb = await sr.blob();
                     const sname = 'subtitles.vtt';
@@ -745,6 +887,8 @@ document.getElementById('dlBtn').addEventListener('click', async () => {
     setBtn(false);
     showOk(successMsg);
 });
+
+checkLocalHelper();
 </script>
 </body>
 </html>
