@@ -10,7 +10,7 @@ export PATH="/usr/local/bin:$HOME/.deno/bin:$PATH"
 
 # Update yt-dlp to latest (YouTube changes protections frequently)
 echo "Updating yt-dlp to absolute latest..."
-pip install --force-reinstall --no-cache-dir --upgrade "yt-dlp[default]" --quiet
+pip install --force-reinstall --no-cache-dir --upgrade "yt-dlp[default] @ git+https://github.com/yt-dlp/yt-dlp.git" --quiet
 
 # Ensure ffmpeg is in PATH
 echo "Checking ffmpeg availability..."

@@ -13,8 +13,8 @@ apt-get install -y -qq ffmpeg ffprobe curl > /dev/null 2>&1 || echo "Note: Syste
 # Install Deno runtime for YouTube JS challenge solving (yt-dlp EJS)
 echo "Installing Deno runtime..."
 if ! command -v deno &> /dev/null; then
-  export DENO_INSTALL=/usr/local
-  curl -fsSL https://deno.land/x/install/install.sh | sh || echo "Note: Deno install failed (JS challenge solving may fail)"
+  export DENO_INSTALL="$HOME/.deno"
+  curl -fsSL https://deno.land/install.sh | sh || echo "Note: Deno install failed (JS challenge solving may fail)"
 fi
 
 # Install Python dependencies
@@ -24,7 +24,7 @@ pip install --no-cache-dir --force-reinstall -r requirements.txt
 
 # Force install absolute latest yt-dlp
 echo "Installing latest yt-dlp..."
-pip install --no-cache-dir --force-reinstall --upgrade "yt-dlp[default]"
+pip install --no-cache-dir --force-reinstall --upgrade "yt-dlp[default] @ git+https://github.com/yt-dlp/yt-dlp.git"
 
 # Install static ffmpeg as fallback
 echo "Installing static ffmpeg binary (fallback)..."

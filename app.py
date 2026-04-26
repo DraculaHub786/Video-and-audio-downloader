@@ -6,6 +6,11 @@ import shutil
 import base64
 import binascii
 
+# Add Deno to PATH for Render environment
+deno_path = os.path.join(os.environ.get('HOME', '/opt/render/project/src'), '.deno', 'bin')
+if os.path.exists(deno_path) and deno_path not in os.environ.get('PATH', ''):
+    os.environ['PATH'] = f"{deno_path}{os.pathsep}{os.environ.get('PATH', '')}"
+
 # Fix Unicode on Windows
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
@@ -222,16 +227,14 @@ def youtube_extractor_args(use_cookies):
         # Cookies only work with web client; keep profile conservative.
         return {
             'youtube': {
-                'player_client': ['web'],
-                'player_skip': ['configs'],
+                'player_client': ['web']
             }
         }
 
     # Prefer no-cookie profile for cloud reliability (avoids stale-cookie failures).
     return {
         'youtube': {
-            'player_client': ['ios', 'android', 'web'],
-            'player_skip': ['webpage', 'configs'],
+            'player_client': ['ios', 'android', 'web']
         }
     }
 
@@ -265,12 +268,8 @@ BASE_YDL_INFO_OPTS = {
     'skip_download': True,
     'no_check_certificate': True,
     'socket_timeout': 15,
-    'http_headers': {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-us,en;q=0.5',
-        'Sec-Fetch-Mode': 'navigate',
-    },
+    'impersonate': 'safari',
+    'source_address': '0.0.0.0',
     'age_limit': None,
     'format': 'best',
     'retries': 2,
@@ -401,7 +400,8 @@ def dl_worker(task_id, url, fmt_type, quality):
         'prefer_ffmpeg': True,
         'no_check_certificate': True,
         'socket_timeout': 30,
-        'impersonate': 'chrome',
+        'impersonate': 'safari',
+        'source_address': '0.0.0.0',
         'concurrent_fragment_downloads': 15, 
         'http_chunk_size': 10485760,
         'hls_prefer_native': False,
@@ -466,12 +466,6 @@ def dl_worker(task_id, url, fmt_type, quality):
             if is_youtube_url(url):
                 # Cookie refresh cannot be automated in cloud; if cookie flow fails, fall back to no-cookie extraction.
                 fallback_opts = apply_platform_extractor_profile(fallback_opts, url, prefer_cookies=False)
-                fallback_opts['extractor_args'] = {
-                    'youtube': {
-                        'player_client': ['android_creator', 'android', 'web'],
-                        'player_skip': ['configs', 'webpage'],
-                    }
-                }
             fallback_opts['retries'] = 3
             fallback_opts['fragment_retries'] = 3
             fallback_opts['extractor_retries'] = 3
