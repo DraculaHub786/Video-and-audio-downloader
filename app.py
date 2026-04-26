@@ -118,8 +118,13 @@ MAX_SIZE = 700 * 1024 * 1024  # 700 MB
 APP_VERSION = os.environ.get('APP_VERSION', '2026-04-26-cloud-native-extractor')
 ENABLE_YOUTUBE_COOKIES_SETTING = os.environ.get('ENABLE_YOUTUBE_COOKIES', 'auto').strip().lower()
 ENABLE_YOUTUBE_COOKIES = ENABLE_YOUTUBE_COOKIES_SETTING not in ('0', 'false', 'no', 'off')
-YOUTUBE_CLIENTS_WITH_COOKIES = [c.strip() for c in os.environ.get('YTDLP_YOUTUBE_CLIENTS_WITH_COOKIES', 'web_safari,web').split(',') if c.strip()]
-YOUTUBE_CLIENTS_WITHOUT_COOKIES = [c.strip() for c in os.environ.get('YTDLP_YOUTUBE_CLIENTS_WITHOUT_COOKIES', 'web_safari,mweb,ios,android,tv').split(',') if c.strip()]
+NETWORK_PROXY_URL = (os.environ.get('YTDLP_PROXY_URL') or os.environ.get('ALL_PROXY') or os.environ.get('HTTPS_PROXY') or os.environ.get('HTTP_PROXY') or '').strip()
+if NETWORK_PROXY_URL:
+    for env_name in ('ALL_PROXY', 'HTTPS_PROXY', 'HTTP_PROXY'):
+        os.environ.setdefault(env_name, NETWORK_PROXY_URL)
+    print('[INIT] ✓ Outbound proxy enabled for downloads')
+YOUTUBE_CLIENTS_WITH_COOKIES = [c.strip() for c in os.environ.get('YTDLP_YOUTUBE_CLIENTS_WITH_COOKIES', 'mweb,web,android').split(',') if c.strip()]
+YOUTUBE_CLIENTS_WITHOUT_COOKIES = [c.strip() for c in os.environ.get('YTDLP_YOUTUBE_CLIENTS_WITHOUT_COOKIES', 'android,web').split(',') if c.strip()]
 YTDLP_IMPERSONATE_TARGET = os.environ.get('YTDLP_IMPERSONATE_TARGET', '').strip()
 YTDLP_IMPERSONATION_ENABLED = YTDLP_IMPERSONATE_TARGET.lower() not in ('', '0', 'false', 'none', 'off')
 
@@ -227,11 +232,25 @@ def classify_ydl_error(err, url=''):
 
 
 def youtube_extractor_args(use_cookies):
-    """Return yt-dlp YouTube extractor args for cookie/no-cookie profiles."""
+    """
+    Return yt-dlp YouTube extractor args for cookie/no-cookie profiles.
+
+    yt-dlp expects extractor_args to map extractor names to a list of argument
+    strings. For YouTube client selection, each entry must be a single
+    key=value expression, and 'override' is needed so yt-dlp actually uses the
+    requested client profile instead of merging it with defaults.
+    """
+    clients = YOUTUBE_CLIENTS_WITH_COOKIES if use_cookies else YOUTUBE_CLIENTS_WITHOUT_COOKIES
+    cleaned_clients = [client for client in clients if client]
+    if not cleaned_clients:
+        cleaned_clients = ['web']
+
+    client_spec = ','.join(cleaned_clients)
+    if 'override' not in {client.lower() for client in cleaned_clients}:
+        client_spec = f'{client_spec},override'
+
     return {
-        'youtube': {
-            'player_client': YOUTUBE_CLIENTS_WITH_COOKIES if use_cookies else YOUTUBE_CLIENTS_WITHOUT_COOKIES
-        }
+        'youtube': [f'player_client={client_spec}']
     }
 
 
@@ -268,6 +287,13 @@ def apply_ytdlp_transport_profile(opts):
         opts['impersonate'] = YTDLP_IMPERSONATE_TARGET
     else:
         opts.pop('impersonate', None)
+    return opts
+
+
+def apply_network_proxy_profile(opts):
+    """Apply outbound proxy settings to yt-dlp when a proxy URL is configured."""
+    if NETWORK_PROXY_URL:
+        opts['proxy'] = NETWORK_PROXY_URL
     return opts
 
 
@@ -349,6 +375,7 @@ def get_info():
         info_opts = dict(BASE_YDL_INFO_OPTS)
         info_opts = apply_platform_extractor_profile(info_opts, url, prefer_cookies=True)
         info_opts = apply_ytdlp_transport_profile(info_opts)
+        info_opts = apply_network_proxy_profile(info_opts)
         try:
             with yt_dlp.YoutubeDL(info_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
@@ -433,6 +460,7 @@ def dl_worker(task_id, url, fmt_type, quality):
     
     ydl_opts = apply_platform_extractor_profile(ydl_opts, url, prefer_cookies=True)
     ydl_opts = apply_ytdlp_transport_profile(ydl_opts)
+    ydl_opts = apply_network_proxy_profile(ydl_opts)
     
     # Add ffmpeg location if detected
     if FFMPEG_LOCATION:
@@ -639,6 +667,7 @@ def get_subtitles():
     opts['subtitleslangs'] = ['en', 'en-US', 'en-GB']
     opts = apply_platform_extractor_profile(opts, url, prefer_cookies=True)
     opts = apply_ytdlp_transport_profile(opts)
+    opts = apply_network_proxy_profile(opts)
 
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
