@@ -34,11 +34,11 @@ def find_ffmpeg():
     ffmpeg_path = shutil.which('ffmpeg')
     if ffmpeg_path:
         return os.path.dirname(ffmpeg_path)
-    
+
     # Check current directory (Windows development)
     if os.path.exists('./ffmpeg.exe'):
         return '.'
-    
+
     return None  # Will use system ffmpeg or fail gracefully
 
 FFMPEG_LOCATION = find_ffmpeg()
@@ -123,8 +123,11 @@ if NETWORK_PROXY_URL:
     for env_name in ('ALL_PROXY', 'HTTPS_PROXY', 'HTTP_PROXY'):
         os.environ.setdefault(env_name, NETWORK_PROXY_URL)
     print('[INIT] ✓ Outbound proxy enabled for downloads')
-YOUTUBE_CLIENTS_WITH_COOKIES = [c.strip() for c in os.environ.get('YTDLP_YOUTUBE_CLIENTS_WITH_COOKIES', 'mweb,web,android').split(',') if c.strip()]
-YOUTUBE_CLIENTS_WITHOUT_COOKIES = [c.strip() for c in os.environ.get('YTDLP_YOUTUBE_CLIENTS_WITHOUT_COOKIES', 'android,web').split(',') if c.strip()]
+YOUTUBE_CLIENTS_WITH_COOKIES = [c.strip() for c in os.environ.get('YTDLP_YOUTUBE_CLIENTS_WITH_COOKIES', 'web,mweb,ios').split(',') if c.strip()]
+YOUTUBE_CLIENTS_WITHOUT_COOKIES = [c.strip() for c in os.environ.get('YTDLP_YOUTUBE_CLIENTS_WITHOUT_COOKIES', 'android,web,mweb,ios').split(',') if c.strip()]
+YOUTUBE_COOKIES_AVAILABLE = bool(COOKIES_FILE and os.path.exists(COOKIES_FILE))
+YOUTUBE_COOKIES_HEALTHY = YOUTUBE_COOKIES_AVAILABLE
+YOUTUBE_COOKIES_LOCK = threading.Lock()
 YTDLP_IMPERSONATE_TARGET = os.environ.get('YTDLP_IMPERSONATE_TARGET', '').strip()
 YTDLP_IMPERSONATION_ENABLED = YTDLP_IMPERSONATE_TARGET.lower() not in ('', '0', 'false', 'none', 'off')
 
@@ -190,6 +193,40 @@ def is_youtube_url(url):
     return host in ('youtube.com', 'm.youtube.com', 'youtu.be')
 
 
+def normalize_ydl_error_message(err):
+    return (err or '').lower().replace('’', "'")
+
+
+def is_youtube_auth_error(err, url=''):
+    msg = normalize_ydl_error_message(err)
+    return is_youtube_url(url) and any(token in msg for token in (
+        'login',
+        'sign in',
+        'sign in to confirm your age',
+        'sign in to confirm you\'re not a bot',
+        'not a bot',
+        'cookies are no longer valid',
+        'cookies-from-browser',
+        '--cookies',
+    ))
+
+
+def is_retryable_ydl_error(err):
+    msg = normalize_ydl_error_message(err)
+    return any(token in msg for token in (
+        'http error 429',
+        'too many requests',
+        'failed to extract any player response',
+        'requested format is not available',
+        'unable to extract uploader id',
+        'no supported javascript runtime could be found',
+        'could not send video info',
+        'temporary failure in name resolution',
+        'connection reset by peer',
+        'timed out',
+    ))
+
+
 def classify_ydl_error(err, url=''):
     msg = (err or '').lower()
     msg = msg.replace('’', "'")
@@ -224,6 +261,8 @@ def classify_ydl_error(err, url=''):
         '--cookies' in msg
     ):
         return 'YouTube anti-bot check blocked extraction on server. Try again or use another video.'
+    if 'no supported javascript runtime could be found' in msg:
+        return 'Server JavaScript runtime for YouTube extraction is unavailable. Try again later.'
     if 'requested format is not available' in msg:
         return 'Requested quality is unavailable for this video. Try a lower quality or audio mode.'
     if 'ffmpeg' in msg:
@@ -231,33 +270,54 @@ def classify_ydl_error(err, url=''):
     return f"Download failed: {err[:140]}"
 
 
-def youtube_extractor_args(use_cookies):
-    """
-    Return yt-dlp YouTube extractor args for cookie/no-cookie profiles.
+def detect_js_runtimes():
+    """Return explicit JS runtime config for yt-dlp when Deno is available."""
+    candidates = [
+        shutil.which('deno'),
+        os.path.join(os.environ.get('HOME', '/opt/render/project/src'), '.deno', 'bin', 'deno'),
+        os.path.join(os.environ.get('HOME', '/opt/render/project/src'), '.deno', 'bin', 'deno.exe'),
+    ]
+    for candidate in candidates:
+        if candidate and os.path.exists(candidate):
+            return {'deno': {'path': candidate}}
+    return {}
 
-    yt-dlp expects extractor_args to map extractor names to a list of argument
-    strings. For YouTube client selection, each entry must be a single
-    key=value expression, and 'override' is needed so yt-dlp actually uses the
-    requested client profile instead of merging it with defaults.
+
+def youtube_extractor_args(client_list):
     """
-    clients = YOUTUBE_CLIENTS_WITH_COOKIES if use_cookies else YOUTUBE_CLIENTS_WITHOUT_COOKIES
-    cleaned_clients = [client for client in clients if client]
+    Return yt-dlp YouTube extractor args in the nested Python shape yt-dlp expects.
+    """
+    cleaned_clients = [client for client in (client_list or []) if client]
     if not cleaned_clients:
         cleaned_clients = ['web']
-
-    client_spec = ','.join(cleaned_clients)
-    if 'override' not in {client.lower() for client in cleaned_clients}:
-        client_spec = f'{client_spec},override'
-
     return {
-        'youtube': [f'player_client={client_spec}']
+        'youtube': {
+            'player_client': cleaned_clients,
+        }
     }
 
 
-def apply_platform_extractor_profile(opts, url, prefer_cookies=True):
+def should_use_youtube_cookies():
+    return bool(
+        ENABLE_YOUTUBE_COOKIES
+        and YOUTUBE_COOKIES_HEALTHY
+        and COOKIES_FILE
+        and os.path.exists(COOKIES_FILE)
+    )
+
+
+def mark_youtube_cookies_unhealthy(reason):
+    global YOUTUBE_COOKIES_HEALTHY
+    with YOUTUBE_COOKIES_LOCK:
+        if YOUTUBE_COOKIES_HEALTHY:
+            YOUTUBE_COOKIES_HEALTHY = False
+            print(f"[INIT] ⚠ Disabling YouTube cookies for this process: {reason[:160]}")
+
+
+def apply_platform_extractor_profile(opts, url, prefer_cookies=True, client_override=None):
     """
     Apply extractor/cookie settings by platform.
-    - YouTube: cookies+web first (if available), then no-cookie android/web fallback.
+    - YouTube: cookies+web first (if available), then no-cookie android/web/mweb fallback.
     - Others: avoid forcing YouTube extractor args/cookies.
     """
     host = get_host(url)
@@ -269,11 +329,18 @@ def apply_platform_extractor_profile(opts, url, prefer_cookies=True):
     if not is_yt:
         return opts
 
-    if prefer_cookies and ENABLE_YOUTUBE_COOKIES and COOKIES_FILE and os.path.exists(COOKIES_FILE):
-        opts['cookiefile'] = COOKIES_FILE
-        opts['extractor_args'] = youtube_extractor_args(use_cookies=True)
+    if client_override:
+        clients = [client for client in client_override if client]
+    elif prefer_cookies and should_use_youtube_cookies():
+        clients = YOUTUBE_CLIENTS_WITH_COOKIES
     else:
-        opts['extractor_args'] = youtube_extractor_args(use_cookies=False)
+        clients = YOUTUBE_CLIENTS_WITHOUT_COOKIES
+
+    opts['extractor_args'] = youtube_extractor_args(clients)
+
+    if prefer_cookies and should_use_youtube_cookies():
+        opts['cookiefile'] = COOKIES_FILE
+
     return opts
 
 
@@ -283,6 +350,12 @@ def apply_ytdlp_transport_profile(opts):
     Impersonation is opt-in via YTDLP_IMPERSONATE_TARGET because unsupported targets
     cause hard failures on Render and other restricted environments.
     """
+    js_runtimes = detect_js_runtimes()
+    if js_runtimes:
+        opts['js_runtimes'] = js_runtimes
+    else:
+        opts.pop('js_runtimes', None)
+
     if YTDLP_IMPERSONATION_ENABLED and YTDLP_IMPERSONATE_TARGET:
         opts['impersonate'] = YTDLP_IMPERSONATE_TARGET
     else:
@@ -328,6 +401,78 @@ def pick_format_string(fmt_type, quality):
             f'best'
         )
 
+
+def build_youtube_profile_sequence():
+    profiles = []
+    if should_use_youtube_cookies():
+        profiles.append({
+            'name': 'cookie-web',
+            'use_cookies': True,
+            'clients': ['web'],
+        })
+    profiles.extend([
+        {
+            'name': 'public-android',
+            'use_cookies': False,
+            'clients': ['android', 'web', 'mweb', 'ios'],
+        },
+        {
+            'name': 'public-web',
+            'use_cookies': False,
+            'clients': ['web', 'android', 'mweb', 'ios'],
+        },
+    ])
+    return profiles
+
+
+def run_ytdlp_with_fallback(url, base_opts, download=False):
+    profiles = build_youtube_profile_sequence() if is_youtube_url(url) else [{
+        'name': 'generic',
+        'use_cookies': False,
+        'clients': None,
+    }]
+
+    last_error = None
+
+    for index, profile in enumerate(profiles):
+        opts = dict(base_opts)
+        opts = apply_platform_extractor_profile(
+            opts,
+            url,
+            prefer_cookies=profile['use_cookies'],
+            client_override=profile['clients'],
+        )
+        opts = apply_ytdlp_transport_profile(opts)
+        opts = apply_network_proxy_profile(opts)
+
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=download)
+                prepared = ydl.prepare_filename(info) if download else None
+            return info, prepared, profile['name']
+        except Exception as exc:
+            last_error = str(exc)
+            normalized = normalize_ydl_error_message(last_error)
+
+            if profile['use_cookies'] and is_youtube_auth_error(last_error, url=url):
+                mark_youtube_cookies_unhealthy(last_error)
+
+            if is_youtube_url(url) and index < len(profiles) - 1:
+                if any(token in normalized for token in ('private video', 'members-only', 'video unavailable')):
+                    raise
+                if 'http error 429' in normalized or 'too many requests' in normalized:
+                    time.sleep(min(5, 1 + index * 2))
+                continue
+
+            if is_retryable_ydl_error(last_error):
+                if 'http error 429' in normalized or 'too many requests' in normalized:
+                    time.sleep(min(5, 1 + index * 2))
+                continue
+
+            raise
+
+    raise Exception(last_error or 'Download failed')
+
 # ──────────────────────────────────────────────
 # Routes
 # ──────────────────────────────────────────────
@@ -346,6 +491,7 @@ def health_check():
         'app_version': APP_VERSION,
         'yt_dlp_version': YT_DLP_VERSION,
         'youtube_cookies_loaded': bool(COOKIES_FILE and os.path.exists(COOKIES_FILE)),
+        'youtube_cookies_healthy': YOUTUBE_COOKIES_HEALTHY,
         'youtube_cookies_source': COOKIES_SOURCE,
     }), 200
 
@@ -356,6 +502,7 @@ def version_check():
         'app_version': APP_VERSION,
         'yt_dlp_version': YT_DLP_VERSION,
         'youtube_cookies_loaded': bool(COOKIES_FILE and os.path.exists(COOKIES_FILE)),
+        'youtube_cookies_healthy': YOUTUBE_COOKIES_HEALTHY,
         'youtube_cookies_source': COOKIES_SOURCE,
     }), 200
 
@@ -373,19 +520,7 @@ def get_info():
 
     try:
         info_opts = dict(BASE_YDL_INFO_OPTS)
-        info_opts = apply_platform_extractor_profile(info_opts, url, prefer_cookies=True)
-        info_opts = apply_ytdlp_transport_profile(info_opts)
-        info_opts = apply_network_proxy_profile(info_opts)
-        try:
-            with yt_dlp.YoutubeDL(info_opts) as ydl:
-                info = ydl.extract_info(url, download=False)
-        except Exception:
-            # If cookies are stale/bad, retry automatically without cookies.
-            if not is_youtube_url(url) or 'cookiefile' not in info_opts:
-                raise
-            info_opts = apply_platform_extractor_profile(info_opts, url, prefer_cookies=False)
-            with yt_dlp.YoutubeDL(info_opts) as ydl:
-                info = ydl.extract_info(url, download=False)
+        info, _, _ = run_ytdlp_with_fallback(url, info_opts, download=False)
 
         dur = int(info.get('duration') or 0)
         return jsonify({
@@ -436,9 +571,8 @@ def dl_worker(task_id, url, fmt_type, quality):
         'prefer_ffmpeg': True,
         'no_check_certificate': True,
         'socket_timeout': 30,
-        'impersonate': 'safari',
         'source_address': '0.0.0.0',
-        'concurrent_fragment_downloads': 15, 
+        'concurrent_fragment_downloads': 15,
         'http_chunk_size': 10485760,
         'hls_prefer_native': False,
         'http_headers': {
@@ -457,11 +591,11 @@ def dl_worker(task_id, url, fmt_type, quality):
         'sleep_interval_requests': 1,
         'progress_hooks': [progress_hook]
     }
-    
+
     ydl_opts = apply_platform_extractor_profile(ydl_opts, url, prefer_cookies=True)
     ydl_opts = apply_ytdlp_transport_profile(ydl_opts)
     ydl_opts = apply_network_proxy_profile(ydl_opts)
-    
+
     # Add ffmpeg location if detected
     if FFMPEG_LOCATION:
         ydl_opts['ffmpeg_location'] = FFMPEG_LOCATION
@@ -477,40 +611,9 @@ def dl_worker(task_id, url, fmt_type, quality):
 
     try:
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                prepared = ydl.prepare_filename(info)
+            info, prepared, profile_name = run_ytdlp_with_fallback(url, ydl_opts, download=True)
         except Exception as first_err:
-            # Retry once with a simpler YouTube client profile for bot-check/player-response failures.
-            msg = str(first_err).lower()
-            msg = msg.replace('’', "'")
-            retriable = (
-                'failed to extract any player response' in msg or
-                'confirm you\'re not a bot' in msg or
-                'sign in to confirm your age' in msg or
-                'sign in to confirm you\'re not a bot' in msg or
-                'not a bot' in msg or
-                'requested format is not available' in msg or
-                'http error 429' in msg or
-                'too many requests' in msg
-            )
-            if not retriable:
-                raise
-
-            fallback_opts = dict(ydl_opts)
-            if 'http error 429' in msg or 'too many requests' in msg:
-                time.sleep(4)
-
-            if is_youtube_url(url):
-                # Cookie refresh cannot be automated in cloud; if cookie flow fails, fall back to no-cookie extraction.
-                fallback_opts = apply_platform_extractor_profile(fallback_opts, url, prefer_cookies=False)
-            fallback_opts['retries'] = 3
-            fallback_opts['fragment_retries'] = 3
-            fallback_opts['extractor_retries'] = 3
-            fallback_opts['sleep_interval_requests'] = 2
-            with yt_dlp.YoutubeDL(fallback_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                prepared = ydl.prepare_filename(info)
+            raise first_err
 
         # File is fully merged/downloaded now on disk.
         filename = prepared
@@ -520,25 +623,27 @@ def dl_worker(task_id, url, fmt_type, quality):
                 if os.path.exists(base + e):
                     filename = base + e
                     break
-                    
+
         # Fallback to tmp dir matches
         if not os.path.exists(filename):
             prefix = f"dl_{timestamp}"
             matches = [f for f in os.listdir(tempfile.gettempdir()) if f.startswith(prefix)]
-            if matches: filename = os.path.join(tempfile.gettempdir(), matches[0])
+            if matches:
+                filename = os.path.join(tempfile.gettempdir(), matches[0])
 
         if not os.path.exists(filename):
             raise Exception("File not found on server after processing.")
 
         actual_ext = os.path.splitext(filename)[1].lower()
         file_title = safe_name(info.get('title', 'download')) + actual_ext
-        
+
         with tasks_lock:
             if task_id in tasks:
                 tasks[task_id]['status']   = 'completed'
                 tasks[task_id]['progress'] = 100
                 tasks[task_id]['filepath'] = filename
                 tasks[task_id]['filename'] = file_title
+                tasks[task_id]['extractor_profile'] = profile_name
 
     except Exception as e:
         err_out = classify_ydl_error(str(e), url=url)
@@ -557,9 +662,11 @@ def start_download():
     quality   = data.get('quality', '720')
 
     ok, url = validate_url(url)
-    if not ok: return jsonify({'error': url}), 400
+    if not ok:
+        return jsonify({'error': url}), 400
     url = normalize_youtube_url(url)
-    if fmt_type not in ('video', 'audio'): return jsonify({'error': 'Invalid format'}), 400
+    if fmt_type not in ('video', 'audio'):
+        return jsonify({'error': 'Invalid format'}), 400
 
     task_id = str(uuid.uuid4())
     with tasks_lock:
@@ -569,7 +676,8 @@ def start_download():
             'filepath': None,
             'filename': None,
             'error': None,
-            'created_at': time.time()
+            'created_at': time.time(),
+            'extractor_profile': None,
         }
 
     thread = threading.Thread(target=dl_worker, args=(task_id, url, fmt_type, quality))
@@ -596,7 +704,7 @@ def get_status(task_id):
 def serve_file(task_id):
     with tasks_lock:
         t = tasks.get(task_id)
-        
+
     if not t or t['status'] != 'completed' or not t['filepath']:
         return "File not ready or expired", 404
 
@@ -604,18 +712,19 @@ def serve_file(task_id):
     safe_title = t['filename']
     actual_ext = os.path.splitext(filename)[1].lower()
     mimetype = {'.mp4':'video/mp4', '.webm':'video/webm', '.m4a':'audio/mp4', '.mp3':'audio/mpeg'}.get(actual_ext, 'application/octet-stream')
-    
+
     # We yield chunks to stream it gently, then remove
     file_size = os.path.getsize(filename)
-    
+
     def stream_and_rm():
         with open(filename, 'rb') as f:
             while True:
                 chunk = f.read(1024 * 1024)  # 1 MB blocks
-                if not chunk: break
+                if not chunk:
+                    break
                 yield chunk
-            # We explicitly do NOT delete tasks[task_id] tracking immediately because 
-            # modern browser popup blockers can execute a second HEAD/GET validation request 
+            # We explicitly do NOT delete tasks[task_id] tracking immediately because
+            # modern browser popup blockers can execute a second HEAD/GET validation request
             # resulting in a "404 Task Not Found" failure if the tracking disappears instantly.
 
     resp_headers = {
@@ -634,7 +743,7 @@ def serve_file(task_id):
 def get_thumbnail():
     data = request.json or {}
     thumb_url = data.get('thumb_url', '').strip()
-    
+
     if not thumb_url or not thumb_url.startswith('http'):
         return jsonify({'error': 'Invalid thumbnail URL'}), 400
 
@@ -643,7 +752,7 @@ def get_thumbnail():
         r.raise_for_status()
         ctype = r.headers.get('Content-Type', 'image/jpeg')
         ext   = 'webp' if 'webp' in ctype else 'jpg'
-        
+
         # generate a secure fallback filename
         title = "thumbnail_download"
 
@@ -657,43 +766,60 @@ def get_thumbnail():
 @limiter.limit("30 per minute")
 def get_subtitles():
     data = request.json or {}
-    url  = data.get('url', '').strip()
+    url = data.get('url', '').strip()
     ok, url = validate_url(url)
-    if not ok: return jsonify({'error': url}), 400
+    if not ok:
+        return jsonify({'error': url}), 400
+    url = normalize_youtube_url(url)
 
     opts = dict(BASE_YDL_INFO_OPTS)
-    opts['writesubtitles'] = True
-    opts['writeautomaticsub'] = True
-    opts['subtitleslangs'] = ['en', 'en-US', 'en-GB']
-    opts = apply_platform_extractor_profile(opts, url, prefer_cookies=True)
-    opts = apply_ytdlp_transport_profile(opts)
-    opts = apply_network_proxy_profile(opts)
 
     try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url, download=False)
+        info, _, _ = run_ytdlp_with_fallback(url, opts, download=False)
+    except Exception as e:
+        err = str(e)
+        app.logger.warning(f"Subtitle info error: {err}")
+        if any(token in normalize_ydl_error_message(err) for token in (
+            'no subtitles',
+            'subtitle',
+            'captions',
+            'automatic captions',
+        )):
+            return jsonify({'error': 'No subtitles available for this video.'}), 404
+        return jsonify({'error': classify_ydl_error(err, url=url)}), 400
 
-        subs = info.get('subtitles', {}) or {}
-        auto = info.get('automatic_captions', {}) or {}
-        all_subs = {**auto, **subs}
+    subs = info.get('subtitles') or {}
+    auto = info.get('automatic_captions') or {}
+    all_subs = {**auto, **subs}
 
-        en_subs = None
-        for lang in ['en', 'en-US', 'en-GB', 'en-orig']:
-            if lang in all_subs:
-                en_subs = all_subs[lang]
-                break
-        if not en_subs: return jsonify({'error': 'No English subtitles.'}), 404
+    en_subs = None
+    for lang in ['en', 'en-US', 'en-GB', 'en-orig']:
+        if lang in all_subs:
+            en_subs = all_subs[lang]
+            break
+    if not en_subs:
+        return jsonify({'error': 'No subtitles available for this video.'}), 404
 
-        sub_url = next((f.get('url') for f in en_subs if f.get('ext') in ('vtt','srv3','ttml','json3')), en_subs[0].get('url'))
-        if not sub_url: return jsonify({'error': 'Subtitle URL unavailable.'}), 404
+    sub_url = next(
+        (f.get('url') for f in en_subs if f.get('url') and f.get('ext') in ('vtt', 'srv3', 'ttml', 'json3')),
+        en_subs[0].get('url')
+    )
+    if not sub_url:
+        return jsonify({'error': 'Subtitle URL unavailable.'}), 404
 
+    try:
         r = req_lib.get(sub_url, timeout=15, verify=False)
         r.raise_for_status()
-        title = safe_name(info.get('title', 'subtitles'))
-        return Response(r.content, mimetype='text/vtt',
-                        headers={'Content-Disposition': f'attachment; filename="{title}.vtt"'})
-    except:
-        return jsonify({'error': 'Could not fetch subtitles.'}), 500
+    except Exception as e:
+        app.logger.warning(f"Subtitle fetch error: {e}")
+        return jsonify({'error': 'No subtitles available for this video.'}), 404
+
+    title = safe_name(info.get('title', 'subtitles'))
+    return Response(
+        r.content,
+        mimetype='text/vtt',
+        headers={'Content-Disposition': f'attachment; filename="{title}.vtt"'}
+    )
 
 
 if __name__ == '__main__':
