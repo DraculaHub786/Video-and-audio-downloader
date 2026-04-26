@@ -115,8 +115,10 @@ limiter = Limiter(app=app, key_func=get_remote_address,
                   storage_uri="memory://")
 
 MAX_SIZE = 700 * 1024 * 1024  # 700 MB
-APP_VERSION = os.environ.get('APP_VERSION', '2026-04-14-hosted-stability-fix')
+APP_VERSION = os.environ.get('APP_VERSION', '2026-04-26-cloud-native-extractor')
 ENABLE_YOUTUBE_COOKIES = os.environ.get('ENABLE_YOUTUBE_COOKIES', 'false').strip().lower() in ('1', 'true', 'yes', 'on')
+YTDLP_IMPERSONATE_TARGET = os.environ.get('YTDLP_IMPERSONATE_TARGET', '').strip()
+YTDLP_IMPERSONATION_ENABLED = YTDLP_IMPERSONATE_TARGET.lower() not in ('', '0', 'false', 'none', 'off')
 
 # ── Global Task Dictionary ──
 tasks = {}
@@ -262,13 +264,25 @@ def apply_platform_extractor_profile(opts, url, prefer_cookies=True):
     return opts
 
 
+def apply_ytdlp_transport_profile(opts):
+    """
+    Apply transport-level yt-dlp options that are safe across local and cloud runs.
+    Impersonation is opt-in via YTDLP_IMPERSONATE_TARGET because unsupported targets
+    cause hard failures on Render and other restricted environments.
+    """
+    if YTDLP_IMPERSONATION_ENABLED and YTDLP_IMPERSONATE_TARGET:
+        opts['impersonate'] = YTDLP_IMPERSONATE_TARGET
+    else:
+        opts.pop('impersonate', None)
+    return opts
+
+
 BASE_YDL_INFO_OPTS = {
     'quiet': False,
     'no_warnings': False,
     'skip_download': True,
     'no_check_certificate': True,
     'socket_timeout': 15,
-    'impersonate': 'safari',
     'source_address': '0.0.0.0',
     'age_limit': None,
     'format': 'best',
@@ -340,6 +354,7 @@ def get_info():
     try:
         info_opts = dict(BASE_YDL_INFO_OPTS)
         info_opts = apply_platform_extractor_profile(info_opts, url, prefer_cookies=True)
+        info_opts = apply_ytdlp_transport_profile(info_opts)
         try:
             with yt_dlp.YoutubeDL(info_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
@@ -423,6 +438,7 @@ def dl_worker(task_id, url, fmt_type, quality):
     }
     
     ydl_opts = apply_platform_extractor_profile(ydl_opts, url, prefer_cookies=True)
+    ydl_opts = apply_ytdlp_transport_profile(ydl_opts)
     
     # Add ffmpeg location if detected
     if FFMPEG_LOCATION:
@@ -627,6 +643,8 @@ def get_subtitles():
     opts['writesubtitles'] = True
     opts['writeautomaticsub'] = True
     opts['subtitleslangs'] = ['en', 'en-US', 'en-GB']
+    opts = apply_platform_extractor_profile(opts, url, prefer_cookies=True)
+    opts = apply_ytdlp_transport_profile(opts)
 
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
