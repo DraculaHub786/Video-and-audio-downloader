@@ -372,25 +372,24 @@
         <div class="alert err" id="aErr"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span id="aErrMsg"></span></div>
         <div class="alert wrn" id="aWrn"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span id="aWrnMsg"></span></div>
 
-        <!-- Local helper -->
+        <!-- Optional desktop helper -->
         <div class="helper" id="localHelperBox">
             <div class="helper-row">
-                <div class="helper-title">LOCAL HELPER</div>
+                <div class="helper-title">OPTIONAL DESKTOP HELPER</div>
                 <div class="helper-status">
                     <span class="helper-dot" id="localHelperDot"></span>
-                    <span id="localHelperStatus">Checking local helper…</span>
+                    <span id="localHelperStatus">Checking helper…</span>
                 </div>
             </div>
             <div class="helper-desc">
-                Downloads run on your device for reliability (no cloud IP blocks). Start the local helper once and keep it open.
+                Web mode works on all devices (Android/iOS/Desktop). Desktop helper is optional for better reliability on some restricted sources.
             </div>
             <div class="helper-actions">
-                <a class="btn-paste" href="/local-agent" id="downloadHelperBtn">Download local_agent.py</a>
-                <a class="btn-paste" href="/local-agent-requirements">requirements.txt</a>
-                <button class="btn-paste" type="button" id="checkLocalBtn">Check Again</button>
+                <a class="btn-paste" href="/download-installer" id="downloadHelperBtn" download>Download Windows Helper (Optional)</a>
+                <button class="btn-paste" type="button" id="checkLocalBtn">Recheck Helper</button>
             </div>
             <div class="helper-steps" id="localHelperHint">
-                1. Install Python 3.10+  2. Install deps: <code>pip install -r requirements.txt</code>  3. Run: <code>python local_agent.py</code>
+                If helper is not running, downloads still use cloud mode automatically.
             </div>
         </div>
 
@@ -556,7 +555,8 @@
 'use strict';
 
 const LOCAL_AGENT_CANDIDATES = ['http://127.0.0.1:9797', 'http://localhost:9797'];
-let API = LOCAL_AGENT_CANDIDATES[0];
+const CLOUD_API = window.location.origin;
+let API = CLOUD_API;
 let localHelperReady = false;
 
 let currentFmt = 'video';
@@ -608,7 +608,7 @@ async function checkLocalHelper(){
                 API = candidate;
                 localHelperReady = true;
                 if(dot) dot.classList.add('ok');
-                if(status) status.textContent = 'Local helper connected';
+                if(status) status.textContent = 'Helper connected (desktop mode)';
                 if(hint) hint.style.display = 'none';
                 setBtn(false);
                 return;
@@ -618,8 +618,9 @@ async function checkLocalHelper(){
     }
 
     localHelperReady = false;
+    API = CLOUD_API;
     if(dot) dot.classList.remove('ok');
-    if(status) status.textContent = 'Local helper not detected';
+    if(status) status.textContent = 'Cloud mode active (all devices)';
     if(hint) hint.style.display = '';
     setBtn(false);
 }
@@ -681,22 +682,18 @@ function hideProgress(){
 
 function setBtn(loading){
     const btn = document.getElementById('dlBtn');
-    btn.disabled = loading || !localHelperReady;
+    btn.disabled = loading;
     if(loading){
         btn.innerHTML = '<div class="spin"></div><span>Working… please wait</span>';
     } else {
         const label = currentFmt === 'audio' ? 'Audio' : 'Video';
-        if(!localHelperReady){
-            btn.innerHTML = `<span>Start Local Helper</span>`;
-        } else {
-            btn.innerHTML = `
-                <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="7 10 12 15 17 10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-                <span id="dlBtnTxt">Download ${label}</span>`;
-        }
+        btn.innerHTML = `
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span id="dlBtnTxt">Download ${label}</span>`;
     }
 }
 
@@ -727,11 +724,6 @@ document.getElementById('dlBtn').addEventListener('click', async () => {
     const wantSubs  = document.getElementById('optSubs').checked;
 
     if(!url){ showErr('Please enter a URL first.'); return; }
-    if(!localHelperReady){
-        showErr('Local helper not detected. Download and run local_agent.py, then click Check Again.');
-        return;
-    }
-
     hideAlerts();
     document.getElementById('preview').classList.remove('show');
     setBtn(true);

@@ -625,6 +625,25 @@ def download_local_requirements():
     return send_from_directory('.', 'requirements.txt', as_attachment=True)
 
 
+@app.route('/download-installer', methods=['GET'])
+def download_installer():
+    """Download the StreamGrab installer executable."""
+    try:
+        # Try to serve the built exe from dist folder
+        dist_path = os.path.join(os.path.dirname(__file__), 'dist', 'StreamGrab.exe')
+        if os.path.exists(dist_path):
+            return send_from_directory(os.path.dirname(dist_path), 'StreamGrab.exe', as_attachment=True, download_name='StreamGrab-installer.exe')
+        else:
+            # If exe not built yet, return instructions
+            return jsonify({
+                'error': 'Installer not yet built. Please visit the GitHub releases page or build locally.',
+                'instructions': 'The installer will be available soon. For now, please run: python local_agent_v2.py'
+            }), 404
+    except Exception as e:
+        app.logger.error(f"Installer download error: {e}")
+        return jsonify({'error': 'Could not download installer'}), 500
+
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint for UptimeRobot to keep the app alive."""

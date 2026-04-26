@@ -6,3 +6,6 @@ curl-cffi==0.7.1
 requests>=2.32.2,<3
 gunicorn==21.2.0
 static-ffmpeg
+psutil>=5.9.0
+pystray>=0.18.0
+Pillow>=9.0.0
