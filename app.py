@@ -116,7 +116,10 @@ limiter = Limiter(app=app, key_func=get_remote_address,
 
 MAX_SIZE = 700 * 1024 * 1024  # 700 MB
 APP_VERSION = os.environ.get('APP_VERSION', '2026-04-26-cloud-native-extractor')
-ENABLE_YOUTUBE_COOKIES = os.environ.get('ENABLE_YOUTUBE_COOKIES', 'false').strip().lower() in ('1', 'true', 'yes', 'on')
+ENABLE_YOUTUBE_COOKIES_SETTING = os.environ.get('ENABLE_YOUTUBE_COOKIES', 'auto').strip().lower()
+ENABLE_YOUTUBE_COOKIES = ENABLE_YOUTUBE_COOKIES_SETTING not in ('0', 'false', 'no', 'off')
+YOUTUBE_CLIENTS_WITH_COOKIES = [c.strip() for c in os.environ.get('YTDLP_YOUTUBE_CLIENTS_WITH_COOKIES', 'web_safari,web').split(',') if c.strip()]
+YOUTUBE_CLIENTS_WITHOUT_COOKIES = [c.strip() for c in os.environ.get('YTDLP_YOUTUBE_CLIENTS_WITHOUT_COOKIES', 'web_safari,mweb,ios,android,tv').split(',') if c.strip()]
 YTDLP_IMPERSONATE_TARGET = os.environ.get('YTDLP_IMPERSONATE_TARGET', '').strip()
 YTDLP_IMPERSONATION_ENABLED = YTDLP_IMPERSONATE_TARGET.lower() not in ('', '0', 'false', 'none', 'off')
 
@@ -225,18 +228,9 @@ def classify_ydl_error(err, url=''):
 
 def youtube_extractor_args(use_cookies):
     """Return yt-dlp YouTube extractor args for cookie/no-cookie profiles."""
-    if use_cookies:
-        # Cookies only work with web client; keep profile conservative.
-        return {
-            'youtube': {
-                'player_client': ['web']
-            }
-        }
-
-    # Prefer no-cookie profile for cloud reliability (avoids stale-cookie failures).
     return {
         'youtube': {
-            'player_client': ['ios', 'android', 'web']
+            'player_client': YOUTUBE_CLIENTS_WITH_COOKIES if use_cookies else YOUTUBE_CLIENTS_WITHOUT_COOKIES
         }
     }
 
