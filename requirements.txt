@@ -3,6 +3,6 @@ flask-cors==4.0.0
 Flask-Limiter==3.5.0
 yt-dlp[default] @ git+https://github.com/yt-dlp/yt-dlp.git
 curl-cffi==0.7.1
-requests==2.31.0
+requests>=2.32.2,<3
 gunicorn==21.2.0
 static-ffmpeg

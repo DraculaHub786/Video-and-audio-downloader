@@ -1,100 +1,140 @@
 """
-Test every endpoint: /info, /download, /thumbnail, /subtitles
-with the YouTube Shorts URL.
+End-to-end smoke test for the current async downloader API.
+
+Covers:
+- POST /info
+- POST /start_download
+- GET /status/<task_id>
+- GET /get_file/<task_id>
+- POST /thumbnail
+- POST /subtitles
+
+Note:
+- The app does not expose a /download route anymore.
+- /thumbnail expects {"thumb_url": "..."} not {"url": "..."}.
 """
-import requests, time, json, sys
 
-BASE    = 'http://localhost:5000'
-TEST_URL = 'https://www.youtube.com/shorts/mn5cfMMquRQ'
+import json
+import time
+import requests
 
-HDR = {'Content-Type': 'application/json'}
+BASE = "http://localhost:5000"
+TEST_URL = "https://www.youtube.com/shorts/mn5cfMMquRQ"
+HDR = {"Content-Type": "application/json"}
 
-def post(endpoint, payload, timeout=25):
-    t0 = time.time()
-    r = requests.post(BASE + endpoint, headers=HDR,
-                      data=json.dumps(payload), timeout=timeout, stream=True)
-    elapsed = time.time() - t0
-    return r, elapsed
 
-# ── 1. /info ────────────────────────────────────────────
+def post_json(endpoint, payload, timeout=30):
+    return requests.post(
+        BASE + endpoint,
+        headers=HDR,
+        data=json.dumps(payload),
+        timeout=timeout,
+        stream=True,
+    )
+
+
+def fetch_info(url):
+    r = post_json("/info", {"url": url}, timeout=30)
+    return r
+
+
+def fetch_download_task(url, fmt="video", quality="720"):
+    r = post_json(
+        "/start_download",
+        {"url": url, "format": fmt, "quality": quality},
+        timeout=30,
+    )
+    return r
+
+
+def wait_for_task(task_id, timeout_seconds=300):
+    deadline = time.time() + timeout_seconds
+    last_status = None
+
+    while time.time() < deadline:
+        sr = requests.get(f"{BASE}/status/{task_id}", timeout=10)
+        if not sr.ok:
+            time.sleep(1)
+            continue
+
+        data = sr.json()
+        last_status = data
+        status = data.get("status")
+        print(f"    status={status} progress={data.get('progress')} error={data.get('error')}")
+
+        if status in ("completed", "error"):
+            return data
+
+        time.sleep(1)
+
+    return last_status or {"status": "timeout"}
+
+
 print("\n[1] Testing /info …")
-t0 = time.time()
 try:
-    r, elapsed = post('/info', {'url': TEST_URL})
-    if r.ok:
-        d = r.json()
-        print(f"    OK in {elapsed:.2f}s — title: {d.get('title','?')[:60]}")
+    info_res = fetch_info(TEST_URL)
+    if info_res.ok:
+        info = info_res.json()
+        print(f"    OK — title: {info.get('title', '?')[:80]}")
+        print(f"    platform: {info.get('platform', '?')} | duration: {info.get('duration', '?')}")
+        thumbnail_url = info.get("thumbnail") or ""
     else:
-        print(f"    FAIL {r.status_code}: {r.text[:200]}")
+        print(f"    FAIL {info_res.status_code}: {info_res.text[:200]}")
+        thumbnail_url = ""
+except Exception as e:
+    print(f"    ERROR: {e}")
+    thumbnail_url = ""
+
+print("\n[2] Testing /start_download → /status/<task_id> → /get_file/<task_id> …")
+try:
+    task_res = fetch_download_task(TEST_URL, fmt="video", quality="720")
+    if not task_res.ok:
+        print(f"    FAIL {task_res.status_code}: {task_res.text[:300]}")
+    else:
+        task_id = task_res.json().get("task_id")
+        print(f"    task_id: {task_id}")
+
+        if task_id:
+            final_state = wait_for_task(task_id, timeout_seconds=300)
+            if final_state.get("status") == "completed":
+                fr = requests.get(f"{BASE}/get_file/{task_id}", stream=True, timeout=20)
+                if fr.ok:
+                    size = 0
+                    for chunk in fr.iter_content(chunk_size=1024 * 1024):
+                        if chunk:
+                            size += len(chunk)
+                    print(f"    OK — downloaded {size // 1024} KB")
+                else:
+                    print(f"    FAIL /get_file {fr.status_code}: {fr.text[:200]}")
+            else:
+                print(f"    FINAL STATE: {final_state}")
 except Exception as e:
     print(f"    ERROR: {e}")
 
-# ── 2. /download (video 720p) ────────────────────────────
-print("\n[2] Testing /download (video 720p) …")
-t0 = time.time()
-try:
-    r = requests.post(BASE + '/download', headers=HDR,
-                      data=json.dumps({'url': TEST_URL, 'format': 'video', 'quality': '720'}),
-                      timeout=90, stream=True)
-    t_first = time.time() - t0
-    if r.ok:
-        size = 0
-        for chunk in r.iter_content(65536):
-            if chunk: size += len(chunk)
-        total = time.time() - t0
-        cd = r.headers.get('Content-Disposition','')
-        print(f"    OK — first byte: {t_first:.2f}s | total: {total:.2f}s | size: {size//1024} KB")
-        print(f"    filename: {cd}")
-    else:
-        print(f"    FAIL {r.status_code}: {r.text[:300]}")
-except Exception as e:
-    print(f"    ERROR: {e}")
+print("\n[3] Testing /thumbnail …")
+if thumbnail_url:
+    try:
+        tr = post_json("/thumbnail", {"thumb_url": thumbnail_url}, timeout=30)
+        if tr.ok:
+            print(f"    OK — thumbnail bytes: {len(tr.content)}")
+        else:
+            print(f"    FAIL {tr.status_code}: {tr.text[:200]}")
+    except Exception as e:
+        print(f"    ERROR: {e}")
+else:
+    print("    SKIP — /info did not return a thumbnail URL")
 
-# ── 3. /download (audio) ─────────────────────────────────
-print("\n[3] Testing /download (audio) …")
-t0 = time.time()
+print("\n[4] Testing /subtitles …")
 try:
-    r = requests.post(BASE + '/download', headers=HDR,
-                      data=json.dumps({'url': TEST_URL, 'format': 'audio', 'quality': 'best'}),
-                      timeout=60, stream=True)
-    t_first = time.time() - t0
-    if r.ok:
-        size = 0
-        for chunk in r.iter_content(65536):
-            if chunk: size += len(chunk)
-        total = time.time() - t0
-        print(f"    OK — first byte: {t_first:.2f}s | total: {total:.2f}s | size: {size//1024} KB")
+    sr = post_json("/subtitles", {"url": TEST_URL}, timeout=30)
+    if sr.ok:
+        print(f"    OK — subtitle bytes: {len(sr.content)}")
     else:
-        print(f"    FAIL {r.status_code}: {r.text[:300]}")
-except Exception as e:
-    print(f"    ERROR: {e}")
-
-# ── 4. /thumbnail ─────────────────────────────────────────
-print("\n[4] Testing /thumbnail …")
-t0 = time.time()
-try:
-    r = requests.post(BASE + '/thumbnail', headers=HDR,
-                      data=json.dumps({'url': TEST_URL}), timeout=30)
-    elapsed = time.time() - t0
-    if r.ok:
-        print(f"    OK in {elapsed:.2f}s — size: {len(r.content)//1024} KB")
-    else:
-        print(f"    FAIL {r.status_code}: {r.text[:200]}")
-except Exception as e:
-    print(f"    ERROR: {e}")
-
-# ── 5. /subtitles ─────────────────────────────────────────
-print("\n[5] Testing /subtitles …")
-t0 = time.time()
-try:
-    r = requests.post(BASE + '/subtitles', headers=HDR,
-                      data=json.dumps({'url': TEST_URL}), timeout=30)
-    elapsed = time.time() - t0
-    if r.ok:
-        print(f"    OK in {elapsed:.2f}s — size: {len(r.content)} bytes")
-        print(f"    Preview: {r.text[:120]!r}")
-    else:
-        print(f"    NO SUBS {r.status_code}: {r.json().get('error','?')}")
+        try:
+            err = sr.json().get("error", sr.text[:200])
+        except Exception:
+            err = sr.text[:200]
+        print(f"    NO SUBS {sr.status_code}: {err}")
 except Exception as e:
     print(f"    ERROR: {e}")
 

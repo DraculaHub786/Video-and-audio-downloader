@@ -51,10 +51,12 @@ echo "========================================="
 echo "Starting gunicorn server..."
 echo "========================================="
 
-# Start the app with proper worker configuration
+# Start the app with a single worker so in-memory async download tasks
+# stay consistent across /start_download, /status/<task_id>, and /get_file/<task_id>.
+# Multiple Gunicorn workers break the current task dictionary because it is not shared.
 exec gunicorn app:app \
     --bind 0.0.0.0:${PORT:-10000} \
-    --workers 2 \
+    --workers 1 \
     --threads 4 \
     --timeout 120 \
     --access-logfile - \
