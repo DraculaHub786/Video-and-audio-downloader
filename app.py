@@ -230,7 +230,7 @@ def youtube_extractor_args(use_cookies):
     # Prefer no-cookie profile for cloud reliability (avoids stale-cookie failures).
     return {
         'youtube': {
-            'player_client': ['android', 'web'],
+            'player_client': ['ios', 'android', 'web'],
             'player_skip': ['webpage', 'configs'],
         }
     }
@@ -401,6 +401,7 @@ def dl_worker(task_id, url, fmt_type, quality):
         'prefer_ffmpeg': True,
         'no_check_certificate': True,
         'socket_timeout': 30,
+        'impersonate': 'chrome',
         'concurrent_fragment_downloads': 15, 
         'http_chunk_size': 10485760,
         'hls_prefer_native': False,

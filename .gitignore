@@ -20,7 +20,7 @@ dist/
 .mypy_cache/
 .ruff_cache/
 .coverage
-.coverage.*
+.coverage.* 
 htmlcov/
 
 # VS Code and editor settings
