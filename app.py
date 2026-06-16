@@ -168,12 +168,47 @@ if NETWORK_PROXY_URL:
 # Prefer tokenless clients by default. Token-requiring clients can be enabled explicitly
 # via environment variables when a PO token provider or trusted session is available.
 YOUTUBE_CLIENTS_WITH_COOKIES = [c.strip() for c in os.environ.get('YTDLP_YOUTUBE_CLIENTS_WITH_COOKIES', 'tv,web_embedded,web_safari').split(',') if c.strip()]
-YOUTUBE_CLIENTS_WITHOUT_COOKIES = [c.strip() for c in os.environ.get('YTDLP_YOUTUBE_CLIENTS_WITHOUT_COOKIES', 'tv,web_embedded,web_safari,tv_simply').split(',') if c.strip()]
+YOUTUBE_CLIENTS_WITHOUT_COOKIES = [c.strip() for c in os.environ.get('YTDLP_YOUTUBE_CLIENTS_WITHOUT_COOKIES', 'tv,web_embedded,web_safari,tv_simply,mweb').split(',') if c.strip()]
 YOUTUBE_COOKIES_AVAILABLE = bool(COOKIES_FILE and os.path.exists(COOKIES_FILE))
 YOUTUBE_COOKIES_HEALTHY = YOUTUBE_COOKIES_AVAILABLE
 YOUTUBE_COOKIES_LOCK = threading.Lock()
 YTDLP_IMPERSONATE_TARGET = os.environ.get('YTDLP_IMPERSONATE_TARGET', '').strip()
 YTDLP_IMPERSONATION_ENABLED = YTDLP_IMPERSONATE_TARGET.lower() not in ('', '0', 'false', 'none', 'off')
+
+# ── Cookie Consent Tracking ──
+# Tracks IPs of users who clicked 'Accept' on the cookie consent banner.
+# When a user consents, we enable a more human-like download profile for their requests.
+consented_ips: set = set()
+consented_ips_lock = threading.Lock()
+
+# ── Rotating User-Agent Pool ──
+# Diverse pool of real browser UAs to reduce fingerprinting and bot detection.
+USER_AGENT_POOL = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_4_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0',
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1',
+    'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36',
+]
+
+def get_rotated_user_agent():
+    """Return a random User-Agent from the pool to reduce bot fingerprinting."""
+    import random
+    return random.choice(USER_AGENT_POOL)
+
+def is_consented_ip(ip):
+    """Check if the given IP has accepted the cookie consent banner."""
+    with consented_ips_lock:
+        return ip in consented_ips
+
+def register_consent(ip):
+    """Register a user IP as having accepted cookie consent."""
+    with consented_ips_lock:
+        consented_ips.add(ip)
+    print(f"[CONSENT] ✓ Cookie consent accepted from {ip[:20]}***")
 
 # ── Global Task Dictionary ──
 tasks = {}
@@ -428,25 +463,34 @@ def apply_network_proxy_profile(opts):
     return opts
 
 
-BASE_YDL_INFO_OPTS = {
-    'quiet': False,
-    'no_warnings': False,
-    'skip_download': True,
-    'no_check_certificate': True,
-    'socket_timeout': 15,
-    'source_address': '0.0.0.0',
-    'age_limit': None,
-    'format': 'best',
-    'retries': 2,
-    'extractor_retries': 2,
-    'sleep_interval_requests': 1,
-    'http_headers': {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-us,en;q=0.5',
-        'Sec-Fetch-Mode': 'navigate',
-    },
-}
+def build_base_ydl_info_opts():
+    """Build base info opts with a rotated user-agent for each call to reduce bot fingerprinting."""
+    return {
+        'quiet': False,
+        'no_warnings': False,
+        'skip_download': True,
+        'no_check_certificate': True,
+        'socket_timeout': 15,
+        'source_address': '0.0.0.0',
+        'age_limit': None,
+        'format': 'best',
+        'retries': 2,
+        'extractor_retries': 2,
+        'sleep_interval_requests': 1,
+        'http_headers': {
+            'User-Agent': get_rotated_user_agent(),
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Ch-Ua': '"Chromium";v="125", "Not.A/Brand";v="24"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"',
+        },
+    }
+
+BASE_YDL_INFO_OPTS = build_base_ydl_info_opts()
 
 def pick_format_string(fmt_type, quality):
     """
@@ -466,78 +510,53 @@ def pick_format_string(fmt_type, quality):
         )
 
 
-def build_youtube_profile_sequence():
+def build_youtube_profile_sequence(user_consented=False):
     """
     Build a YouTube fallback ladder that prefers clients known to work without
-    PO tokens, then optionally enables legacy clients when explicitly requested.
+    PO tokens. When the user has accepted cookie consent, we use additional
+    human-like clients that have lower bot-detection rates.
     """
     profiles = []
 
     # Cookie-backed paths are tried first for age-gated or account-sensitive videos.
-    # They still use tokenless clients so they don't immediately fall into the current
-    # YouTube PO-token enforcement path.
     if should_use_youtube_cookies():
         profiles.extend([
-            {
-                'name': 'cookie-tv',
-                'use_cookies': True,
-                'clients': ['tv'],
-            },
-            {
-                'name': 'cookie-embed',
-                'use_cookies': True,
-                'clients': ['web_embedded'],
-            },
-            {
-                'name': 'cookie-web-safari',
-                'use_cookies': True,
-                'clients': ['web_safari'],
-            },
+            {'name': 'cookie-tv',         'use_cookies': True, 'clients': ['tv']},
+            {'name': 'cookie-embed',      'use_cookies': True, 'clients': ['web_embedded']},
+            {'name': 'cookie-web-safari', 'use_cookies': True, 'clients': ['web_safari']},
         ])
 
-    profiles.extend([
-        {
-            'name': 'public-tv',
-            'use_cookies': False,
-            'clients': ['tv'],
-        },
-        {
-            'name': 'public-embed',
-            'use_cookies': False,
-            'clients': ['web_embedded'],
-        },
-        {
-            'name': 'public-web-safari',
-            'use_cookies': False,
-            'clients': ['web_safari'],
-        },
-        {
-            'name': 'public-tv-simply',
-            'use_cookies': False,
-            'clients': ['tv_simply'],
-        },
-    ])
+    # When user has given cookie consent, prioritize clients with human-like behavior
+    if user_consented:
+        profiles.extend([
+            {'name': 'consented-tv',          'use_cookies': False, 'clients': ['tv']},
+            {'name': 'consented-tv-simply',   'use_cookies': False, 'clients': ['tv_simply']},
+            {'name': 'consented-mweb',        'use_cookies': False, 'clients': ['mweb']},
+            {'name': 'consented-embed',       'use_cookies': False, 'clients': ['web_embedded']},
+            {'name': 'consented-web-safari',  'use_cookies': False, 'clients': ['web_safari']},
+            {'name': 'consented-web-creator', 'use_cookies': False, 'clients': ['web_creator']},
+        ])
+    else:
+        profiles.extend([
+            {'name': 'public-tv',         'use_cookies': False, 'clients': ['tv']},
+            {'name': 'public-embed',      'use_cookies': False, 'clients': ['web_embedded']},
+            {'name': 'public-web-safari', 'use_cookies': False, 'clients': ['web_safari']},
+            {'name': 'public-tv-simply',  'use_cookies': False, 'clients': ['tv_simply']},
+            {'name': 'public-mweb',       'use_cookies': False, 'clients': ['mweb']},
+        ])
 
     enable_legacy_clients = os.environ.get('YTDLP_ENABLE_LEGACY_YOUTUBE_CLIENTS', '0').strip().lower() in ('1', 'true', 'yes', 'on')
     if enable_legacy_clients:
         profiles.extend([
-            {
-                'name': 'legacy-web',
-                'use_cookies': False,
-                'clients': ['web'],
-            },
-            {
-                'name': 'legacy-mweb',
-                'use_cookies': False,
-                'clients': ['mweb'],
-            },
+            {'name': 'legacy-web',  'use_cookies': False, 'clients': ['web']},
+            {'name': 'legacy-mweb', 'use_cookies': False, 'clients': ['mweb']},
         ])
 
     return profiles
 
 
-def run_ytdlp_with_fallback(url, base_opts, download=False, cookiefile_override=None):
-    profiles = build_youtube_profile_sequence() if is_youtube_url(url) else [{
+def run_ytdlp_with_fallback(url, base_opts, download=False, cookiefile_override=None, user_consented=False):
+    profiles = build_youtube_profile_sequence(user_consented=user_consented) if is_youtube_url(url) else [{
         'name': 'generic',
         'use_cookies': False,
         'clients': None,
@@ -669,6 +688,17 @@ def version_check():
     }), 200
 
 
+@app.route('/accept_cookies', methods=['POST'])
+@limiter.limit("30 per minute")
+def accept_cookies():
+    """Called by the frontend cookie consent banner when user clicks 'Accept'.
+    Registers the user's IP as having given consent, which enables a wider
+    set of YouTube download clients and human-like request headers."""
+    requester_ip = get_remote_address()
+    register_consent(requester_ip)
+    return jsonify({'ok': True, 'message': 'Cookie consent registered. Downloads will use enhanced mode.'}), 200
+
+
 @app.route('/info', methods=['POST'])
 @limiter.limit("60 per minute")
 def get_info():
@@ -679,6 +709,10 @@ def get_info():
     if not ok:
         return jsonify({'error': url}), 400
     url = normalize_youtube_url(url)
+
+    # Check if this user has accepted cookie consent (enables enhanced download mode)
+    requester_ip = get_remote_address()
+    user_consented = is_consented_ip(requester_ip)
 
     cookiefile = None
     try:
@@ -692,8 +726,12 @@ def get_info():
                 prefix='yt_req_info_',
             )
 
-        info_opts = dict(BASE_YDL_INFO_OPTS)
-        info, _, _ = run_ytdlp_with_fallback(url, info_opts, download=False, cookiefile_override=cookiefile)
+        info_opts = build_base_ydl_info_opts()  # fresh rotated UA each call
+        info, _, _ = run_ytdlp_with_fallback(
+            url, info_opts, download=False,
+            cookiefile_override=cookiefile,
+            user_consented=user_consented,
+        )
 
         dur = int(info.get('duration') or 0)
         return jsonify({
@@ -717,7 +755,7 @@ def get_info():
 
 
 # ── Async Task Worker ──
-def dl_worker(task_id, url, fmt_type, quality, user_cookiefile=None):
+def dl_worker(task_id, url, fmt_type, quality, user_cookiefile=None, user_consented=False):
     with tasks_lock:
         if task_id not in tasks:
             return
@@ -755,10 +793,15 @@ def dl_worker(task_id, url, fmt_type, quality, user_cookiefile=None):
         'http_chunk_size': 10485760,
         'hls_prefer_native': False,
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-us,en;q=0.5',
+            'User-Agent': get_rotated_user_agent(),  # rotated per-request
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
             'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Ch-Ua': '"Chromium";v="125", "Not.A/Brand";v="24"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"',
         },
         'age_limit': None,
         'noprogress': True,
@@ -795,6 +838,7 @@ def dl_worker(task_id, url, fmt_type, quality, user_cookiefile=None):
                 ydl_opts,
                 download=True,
                 cookiefile_override=user_cookiefile,
+                user_consented=user_consented,
             )
         except Exception as first_err:
             raise first_err
@@ -858,6 +902,10 @@ def start_download():
     if fmt_type not in ('video', 'audio'):
         return jsonify({'error': 'Invalid format'}), 400
 
+    # Check if this user has accepted cookie consent (enables enhanced download mode)
+    requester_ip = get_remote_address()
+    user_consented = is_consented_ip(requester_ip)
+
     # Optional per-request user cookies (base64 preferred). This enables age/login-gated
     # YouTube videos without storing credentials server-side.
     user_cookiefile = None
@@ -885,7 +933,10 @@ def start_download():
             'extractor_profile': None,
         }
 
-    thread = threading.Thread(target=dl_worker, args=(task_id, url, fmt_type, quality, user_cookiefile))
+    thread = threading.Thread(
+        target=dl_worker,
+        args=(task_id, url, fmt_type, quality, user_cookiefile, user_consented)
+    )
     thread.daemon = True
     thread.start()
 

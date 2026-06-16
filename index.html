@@ -332,11 +332,102 @@
         footer { margin-top:56px;text-align:center;padding-bottom:32px; }
         footer p { font-size:12px;color:var(--text-dim);line-height:1.7; }
 
+        /* ── Cookie Consent Banner ────────────────────────── */
+        .cookie-banner {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            z-index: 9999;
+            padding: 0 20px 20px;
+            pointer-events: none;
+            transform: translateY(120%);
+            transition: transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .cookie-banner.visible {
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+        .cookie-banner-inner {
+            max-width: 820px;
+            margin: 0 auto;
+            background: rgba(15, 10, 40, 0.85);
+            backdrop-filter: blur(32px); -webkit-backdrop-filter: blur(32px);
+            border: 1px solid rgba(124, 58, 237, 0.35);
+            border-radius: 20px;
+            padding: 22px 28px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 -4px 60px rgba(124, 58, 237, 0.18), 0 24px 60px rgba(0,0,0,0.6);
+            flex-wrap: wrap;
+        }
+        .cookie-icon {
+            width: 46px; height: 46px; flex-shrink: 0;
+            background: linear-gradient(135deg, rgba(124,58,237,.3), rgba(79,70,229,.25));
+            border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            border: 1px solid rgba(124,58,237,.4);
+            font-size: 22px;
+        }
+        .cookie-text { flex: 1; min-width: 200px; }
+        .cookie-title {
+            font-size: 15px; font-weight: 800; color: var(--text);
+            margin-bottom: 4px; letter-spacing: -.01em;
+        }
+        .cookie-desc {
+            font-size: 12.5px; color: var(--text-sub); line-height: 1.55;
+        }
+        .cookie-desc b { color: #a78bfa; }
+        .cookie-actions { display: flex; gap: 10px; flex-shrink: 0; }
+        .btn-cookie-accept {
+            height: 42px; padding: 0 22px;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            border: none; border-radius: 12px;
+            font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 800;
+            color: #fff; cursor: pointer; white-space: nowrap;
+            box-shadow: 0 4px 18px var(--accent-glow);
+            transition: all .2s cubic-bezier(.4,0,.2,1);
+            display: flex; align-items: center; gap: 7px;
+        }
+        .btn-cookie-accept:hover { transform: translateY(-2px); box-shadow: 0 8px 24px var(--accent-glow); }
+        .btn-cookie-decline {
+            height: 42px; padding: 0 18px;
+            background: var(--surface2); border: 1px solid var(--border);
+            border-radius: 12px;
+            font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 600;
+            color: var(--text-sub); cursor: pointer; white-space: nowrap;
+            transition: all .2s;
+        }
+        .btn-cookie-decline:hover { border-color: var(--border-hi); color: var(--text); }
+
+        /* Enhanced mode pill */
+        .enhanced-pill {
+            display: none;
+            align-items: center; gap: 6px;
+            padding: 5px 12px;
+            background: rgba(16, 185, 129, 0.12);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 100px;
+            font-size: 11.5px; font-weight: 700;
+            color: var(--green); letter-spacing: .04em;
+            animation: fadeIn .4s ease;
+        }
+        .enhanced-pill.show { display: flex; }
+        .enhanced-pill::before {
+            content: ''; width: 7px; height: 7px; border-radius: 50%;
+            background: var(--green); box-shadow: 0 0 8px rgba(16,185,129,.6);
+            animation: glow-pulse 2s ease infinite;
+        }
+        @keyframes glow-pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
+
         @media(max-width:640px){
             .card{padding:22px 20px}
             .fmt-tabs,.quality-row,.feats{grid-template-columns:1fr}
             .url-row{flex-direction:column}
             .hero h1{font-size:26px}
+            .cookie-banner-inner{flex-direction:column;gap:14px;padding:18px 20px}
+            .cookie-actions{width:100%}
+            .btn-cookie-accept,.btn-cookie-decline{flex:1;justify-content:center}
         }
     </style>
 </head>
@@ -355,7 +446,10 @@
             </div>
             <span class="logo-text">Stream<span>Grab</span></span>
         </div>
-        <div class="badge">1000+ Platforms Supported</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+            <div class="enhanced-pill" id="enhancedPill">ENHANCED MODE</div>
+            <div class="badge">1000+ Platforms Supported</div>
+        </div>
     </header>
 
     <!-- Hero -->
@@ -551,6 +645,31 @@
     </footer>
 </div>
 
+<!-- ── Cookie Consent Banner ─────────────────────────────── -->
+<div class="cookie-banner" id="cookieBanner" role="dialog" aria-label="Cookie consent">
+    <div class="cookie-banner-inner">
+        <div class="cookie-icon">🍪</div>
+        <div class="cookie-text">
+            <div class="cookie-title">We use cookies to improve your download experience</div>
+            <div class="cookie-desc">
+                Accepting cookies enables <b>Enhanced Mode</b> — our servers use smarter,
+                human-like request patterns to bypass YouTube's bot checks, so public videos
+                download reliably without "Sign in to confirm" errors.
+                Your data is never sold or shared.
+            </div>
+        </div>
+        <div class="cookie-actions">
+            <button class="btn-cookie-accept" id="btnCookieAccept" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                Accept &amp; Enable
+            </button>
+            <button class="btn-cookie-decline" id="btnCookieDecline" type="button">Decline</button>
+        </div>
+    </div>
+</div>
+
 <script>
 'use strict';
 
@@ -561,6 +680,49 @@ let localHelperReady = false;
 
 let currentFmt = 'video';
 let youtubeCookiesB64 = '';
+
+// ── Cookie Consent ──────────────────────────────────────
+const cookieBanner = document.getElementById('cookieBanner');
+const enhancedPill = document.getElementById('enhancedPill');
+
+function showEnhancedPill(){
+    if(enhancedPill) enhancedPill.classList.add('show');
+}
+
+async function registerConsentWithServer(){
+    try { await fetch(CLOUD_API + '/accept_cookies', {method:'POST'}); } catch(_){}
+    showEnhancedPill();
+}
+
+// On page load: show banner if no choice stored, re-register if already accepted
+(function initCookieBanner(){
+    const stored = localStorage.getItem('cookiesAccepted');
+    if(stored === 'true'){
+        // Already accepted before — re-register with server (server resets on restart)
+        registerConsentWithServer();
+    } else if(stored === null){
+        // First visit — show banner after short delay
+        setTimeout(() => cookieBanner.classList.add('visible'), 800);
+    }
+    // stored === 'false' means user declined — don't show banner again
+})();
+
+document.getElementById('btnCookieAccept').addEventListener('click', async () => {
+    localStorage.setItem('cookiesAccepted', 'true');
+    cookieBanner.classList.remove('visible');
+    await registerConsentWithServer();
+    // showWrn/hideAlerts are defined later in the script, safe to call here
+    setTimeout(() => {
+        if(typeof showWrn === 'function') showWrn('✓ Enhanced Mode activated! Downloads will now use smarter request patterns to bypass bot checks.');
+        setTimeout(() => { if(typeof hideAlerts === 'function') hideAlerts(); }, 5000);
+    }, 100);
+});
+
+document.getElementById('btnCookieDecline').addEventListener('click', () => {
+    localStorage.setItem('cookiesAccepted', 'false');
+    cookieBanner.classList.remove('visible');
+});
+
 
 function toBase64Utf8(str){
     // btoa is Latin1-only; this makes it safe for UTF-8 text
