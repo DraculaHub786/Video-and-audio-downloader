@@ -1,10 +1,18 @@
-import sys, io, os, re, threading, uuid, time
-from datetime import datetime
-from urllib.parse import urlparse
+import sys
+import io
+import os
+import re
+import threading
+import uuid
+import time
+import random
+import subprocess
 import tempfile
 import shutil
 import base64
 import binascii
+from datetime import datetime
+from urllib.parse import urlparse
 
 # Add Deno to PATH for Render environment
 deno_path = os.path.join(os.environ.get('HOME', '/opt/render/project/src'), '.deno', 'bin')
@@ -17,19 +25,52 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='repla
 
 from flask import Flask, request, jsonify, Response, send_from_directory
 from flask_cors import CORS
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
-import yt_dlp
+
+try:
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+    HAS_LIMITER = True
+except ImportError:
+    HAS_LIMITER = False
+    Limiter = None
+    def get_remote_address():
+        return getattr(request, 'remote_addr', '127.0.0.1') or '127.0.0.1'
+
+class DummyLimiter:
+    """Fallback no-op limiter when flask-limiter is not available."""
+    def limit(self, *args, **kwargs):
+        def decorator(f):
+            return f
+        return decorator
+
+    def shared_limit(self, *args, **kwargs):
+        def decorator(f):
+            return f
+        return decorator
+
+    def exempt(self, f):
+        return f
+
 import requests as req_lib
 
 try:
-    from yt_dlp.version import __version__ as YT_DLP_VERSION
-except Exception:
-    YT_DLP_VERSION = getattr(yt_dlp, '__version__', 'unknown')
+    import yt_dlp
+    try:
+        from yt_dlp.version import __version__ as YT_DLP_VERSION
+    except Exception:
+        YT_DLP_VERSION = getattr(yt_dlp, '__version__', 'unknown')
+except ImportError:
+    yt_dlp = None
+    YT_DLP_VERSION = 'missing'
+
+try:
+    import static_ffmpeg
+except ImportError:
+    static_ffmpeg = None
 
 # ── FFMPEG Detection ──
 def find_ffmpeg():
-    """Find ffmpeg in system PATH or from static-ffmpeg package."""
+    """Find ffmpeg in system PATH, current directory, or static-ffmpeg."""
     # Try system PATH first
     ffmpeg_path = shutil.which('ffmpeg')
     if ffmpeg_path:
@@ -38,6 +79,15 @@ def find_ffmpeg():
     # Check current directory (Windows development)
     if os.path.exists('./ffmpeg.exe'):
         return '.'
+
+    if static_ffmpeg is not None:
+        try:
+            static_ffmpeg.add_paths()
+            ffmpeg_path = shutil.which('ffmpeg')
+            if ffmpeg_path:
+                return os.path.dirname(ffmpeg_path)
+        except Exception:
+            pass
 
     return None  # Will use system ffmpeg or fail gracefully
 
@@ -140,11 +190,11 @@ def setup_cookies():
     if os.path.exists('youtube_cookies.txt'):
         COOKIES_FILE = 'youtube_cookies.txt'
         COOKIES_SOURCE = 'file:youtube_cookies.txt'
-        print(f"[INIT] ✓ YouTube cookies found: youtube_cookies.txt")
+        print("[INIT] ✓ YouTube cookies found: youtube_cookies.txt")
         return
 
-    print(f"[INIT] ⚠ No YouTube cookies found - some videos may fail")
-    print(f"[INIT]   To fix: Add YOUTUBE_COOKIES_BASE64 env var in Render")
+    print("[INIT] ⚠ No YouTube cookies found - some videos may fail")
+    print("[INIT]   To fix: Add YOUTUBE_COOKIES_BASE64 env var in Render")
 
 
 setup_cookies()
@@ -152,9 +202,16 @@ setup_cookies()
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "DELETE"], "allow_headers": ["Content-Type"]}})
 
-limiter = Limiter(app=app, key_func=get_remote_address,
-                  default_limits=["500 per day", "200 per hour"],
-                  storage_uri="memory://")
+if HAS_LIMITER and Limiter is not None:
+    try:
+        limiter = Limiter(app=app, key_func=get_remote_address,
+                          default_limits=["500 per day", "200 per hour"],
+                          storage_uri="memory://")
+    except Exception as e:
+        print(f"[INIT] Limiter setup failed, using dummy: {e}")
+        limiter = DummyLimiter()
+else:
+    limiter = DummyLimiter()
 
 MAX_SIZE = 700 * 1024 * 1024  # 700 MB
 APP_VERSION = os.environ.get('APP_VERSION', '2026-04-26-cloud-native-extractor')
@@ -196,7 +253,6 @@ USER_AGENT_POOL = [
 
 def get_rotated_user_agent():
     """Return a random User-Agent from the pool to reduce bot fingerprinting."""
-    import random
     return random.choice(USER_AGENT_POOL)
 
 def is_consented_ip(ip):
@@ -287,6 +343,9 @@ def is_youtube_auth_error(err, url=''):
         'cookies are no longer valid',
         'cookies-from-browser',
         '--cookies',
+        'failed to extract any player response',
+        'failed to parse json',
+        'incomplete data received',
     ))
 
 
@@ -307,68 +366,191 @@ def is_retryable_ydl_error(err):
 
 
 def classify_ydl_error(err, url=''):
-    msg = (err or '').lower()
-    msg = msg.replace('’', "'")
+    msg = (err or '').lower().replace('’', "'")
     host = get_host(url)
     is_yt = host in ('youtube.com', 'm.youtube.com', 'youtu.be')
     is_ig = host.endswith('instagram.com')
+    is_tt = host.endswith('tiktok.com')
+    is_tw = host.endswith('twitter.com') or host.endswith('x.com')
+    is_sc = host.endswith('soundcloud.com')
 
     if 'http error 429' in msg or 'too many requests' in msg:
-        return 'Platform rate limit hit (HTTP 429). Please wait 2-10 minutes and retry.'
+        return 'Rate limited by media host (HTTP 429). Please wait a few seconds and try again.'
 
-    if is_ig and (
-        'login' in msg or
-        'sign in' in msg or
-        'not a bot' in msg or
-        'challenge' in msg
-    ):
-        return 'Instagram blocked this server request (login/challenge). Wait a few minutes and retry with another public reel.'
+    if is_ig and ('login' in msg or 'sign in' in msg or 'not a bot' in msg or 'challenge' in msg):
+        return 'Instagram bot challenge encountered. Please retry in a few moments.'
 
-    if 'private video' in msg or 'members-only' in msg:
-        return 'This video is private or members-only.'
+    if is_tt and ('captcha' in msg or 'verification' in msg or 'fresh' in msg):
+        return 'TikTok verification challenge encountered. Try again in a few seconds.'
+
+    if is_tw and ('rate limit' in msg or 'authentication' in msg or 'login' in msg):
+        return 'Twitter/X media stream requires authentication or is temporarily rate-limited.'
+
+    if 'drm' in msg or 'copyright' in msg or 'protected content' in msg:
+        return 'DRM_PROTECTED:This stream is encrypted with Digital Rights Management (DRM) and cannot be downloaded directly.'
+
+    if 'geo' in msg or 'not available in your country' in msg or 'country' in msg and 'blocked' in msg:
+        return 'GEO_BLOCKED:This content is geographically restricted in the server region.'
+
+    if 'private video' in msg or 'members-only' in msg or 'this video is private' in msg:
+        return 'PRIVATE_MEDIA:This video is private, unlisted, or restricted to channel members.'
+
+    if 'sign in to confirm your age' in msg or 'age-restricted' in msg:
+        return 'This media is age-restricted and requires account verification on the host platform.'
 
     if is_yt and (
         'login' in msg or
-        'sign in to confirm your age' in msg or
         'sign in to confirm you\'re not a bot' in msg or
-        'not a bot' in msg
-    ):
-        if should_use_youtube_cookies():
-            if not YOUTUBE_COOKIES_HEALTHY:
-                return 'YouTube cookies look expired/invalid. Refresh cookies and redeploy, or upload your own cookies in Advanced Options.'
-            return 'YouTube requires sign-in/age verification for this video. If it still fails, upload your own cookies in Advanced Options.'
-        return 'YouTube is requiring sign-in/age verification from this server IP. Upload your own cookies.txt in Advanced Options (recommended) or use a different video.'
-
-    if is_yt and (
+        'not a bot' in msg or
         'confirm you\'re not a bot' in msg or
-        'failed to extract any player response' in msg or
-        'cookies-from-browser' in msg or
-        '--cookies' in msg
+        'failed to extract any player response' in msg
     ):
-        if should_use_youtube_cookies():
-            return 'YouTube anti-bot check blocked extraction. Try again; if it persists, refresh cookies or upload your own cookies in Advanced Options.'
-        return 'YouTube anti-bot check blocked extraction from this server IP. Upload your own cookies.txt in Advanced Options or try another video.'
+        return 'YouTube bot verification challenge encountered. Please retry in a few moments.'
+
+    if 'timed out' in msg or 'connection reset' in msg or 'name resolution' in msg:
+        return 'NETWORK_TIMEOUT:Connection to the media host timed out or reset. Please check your internet connection or try again.'
 
     if 'no supported javascript runtime could be found' in msg:
         return 'Server JavaScript runtime for YouTube extraction is unavailable. Try again later.'
     if 'requested format is not available' in msg:
-        return 'Requested quality is unavailable for this video. Try a lower quality or audio mode.'
+        return 'Requested quality format is unavailable for this stream. Try selecting 720p HD or Audio Master (MP3).'
     if 'ffmpeg' in msg:
-        return 'Server missing FFMPEG. Still deploying.'
+        return 'FFMPEG multiplexing engine not ready on server.'
     return f"Download failed: {err[:140]}"
 
 
 def detect_js_runtimes():
-    """Return explicit JS runtime config for yt-dlp when Deno is available."""
-    candidates = [
-        shutil.which('deno'),
-        os.path.join(os.environ.get('HOME', '/opt/render/project/src'), '.deno', 'bin', 'deno'),
-        os.path.join(os.environ.get('HOME', '/opt/render/project/src'), '.deno', 'bin', 'deno.exe'),
-    ]
-    for candidate in candidates:
-        if candidate and os.path.exists(candidate):
-            return {'deno': {'path': candidate}}
+    """Return explicit JS runtime config for yt-dlp (Node.js or Deno)."""
+    node_path = shutil.which('node') or shutil.which('nodejs')
+    if not node_path:
+        for candidate in [
+            'C:\\Program Files\\nodejs\\node.exe',
+            '/usr/bin/node',
+            '/usr/local/bin/node',
+            os.path.join(os.environ.get('HOME', '/opt/render/project/src'), '.nvm', 'versions', 'node', 'bin', 'node'),
+        ]:
+            if os.path.exists(candidate):
+                node_path = candidate
+                break
+    if node_path:
+        return {'node': {'path': node_path}}
+
+    deno_path = shutil.which('deno')
+    if not deno_path:
+        for candidate in [
+            os.path.join(os.environ.get('HOME', '/opt/render/project/src'), '.deno', 'bin', 'deno'),
+            os.path.join(os.environ.get('HOME', '/opt/render/project/src'), '.deno', 'bin', 'deno.exe'),
+        ]:
+            if os.path.exists(candidate):
+                deno_path = candidate
+                break
+    if deno_path:
+        return {'deno': {'path': deno_path}}
     return {}
+
+
+# ── Direct Media Stream Support (Universal link downloading) ──
+DIRECT_MEDIA_EXTENSIONS = (
+    '.mp4', '.m4v', '.mkv', '.webm', '.mov', '.avi', '.flv', '.wmv',
+    '.mp3', '.m4a', '.aac', '.wav', '.ogg', '.opus', '.flac',
+    '.m3u8', '.ts'
+)
+
+def is_direct_media_url(url):
+    try:
+        path = urlparse(url).path.lower()
+        return any(path.endswith(ext) for ext in DIRECT_MEDIA_EXTENSIONS)
+    except Exception:
+        return False
+
+
+def inspect_direct_media_link(url, proxy=None):
+    """Inspect if a URL directly serves video or audio stream via HTTP HEAD/GET."""
+    try:
+        proxies = {'http': proxy, 'https': proxy} if proxy else None
+        headers = {
+            'User-Agent': get_rotated_user_agent(),
+            'Accept': '*/*',
+        }
+        # Try HEAD first
+        try:
+            r = req_lib.head(url, headers=headers, proxies=proxies, timeout=8, allow_redirects=True)
+            ctype = r.headers.get('Content-Type', '').lower()
+        except Exception:
+            r = req_lib.get(url, headers=headers, proxies=proxies, stream=True, timeout=8, allow_redirects=True)
+            ctype = r.headers.get('Content-Type', '').lower()
+            r.close()
+
+        if any(ctype.startswith(prefix) for prefix in ('video/', 'audio/', 'application/x-mpegurl', 'application/vnd.apple.mpegurl', 'application/ogg', 'application/octet-stream')) or is_direct_media_url(url):
+            cd = r.headers.get('Content-Disposition', '')
+            filename = None
+            if 'filename=' in cd:
+                filename = cd.split('filename=')[1].split(';')[0].strip(' "\'')
+            if not filename:
+                parsed_path = urlparse(r.url or url).path
+                base = os.path.basename(parsed_path)
+                filename = base if base and '.' in base else 'direct_media_download'
+
+            size = r.headers.get('Content-Length')
+            size_str = f"{int(size)/(1024*1024):.1f} MB" if (size and size.isdigit()) else "Direct Stream"
+
+            return {
+                'is_direct': True,
+                'title': filename,
+                'duration': size_str,
+                'thumbnail': '',
+                'platform': 'Direct Media Stream',
+                'uploader': urlparse(url).netloc,
+                'view_count': 0,
+                'content_type': ctype,
+            }
+    except Exception as e:
+        print(f"[DIRECT_STREAM] Inspection error: {e}")
+    return None
+
+
+def download_direct_stream(url, out_path, task_id=None, proxy=None, fmt_type='video'):
+    """Download a direct media URL in streaming chunks and convert format if requested."""
+    proxies = {'http': proxy, 'https': proxy} if proxy else None
+    headers = {
+        'User-Agent': get_rotated_user_agent(),
+        'Accept': '*/*',
+        'Connection': 'keep-alive',
+    }
+    with req_lib.get(url, headers=headers, proxies=proxies, stream=True, timeout=30) as r:
+        r.raise_for_status()
+        total = int(r.headers.get('Content-Length', 0))
+        downloaded = 0
+        with open(out_path, 'wb') as f:
+            for chunk in r.iter_content(chunk_size=1024 * 512):
+                if chunk:
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if total > 0 and task_id:
+                        pct = min(98, round((downloaded / total) * 100))
+                        with tasks_lock:
+                            if task_id in tasks:
+                                tasks[task_id]['status'] = 'downloading'
+                                tasks[task_id]['progress'] = pct
+
+    # If audio extraction was requested and source is video/other
+    if fmt_type == 'audio':
+        ffmpeg_bin = shutil.which('ffmpeg') or (FFMPEG_LOCATION and os.path.join(FFMPEG_LOCATION, 'ffmpeg.exe' if sys.platform=='win32' else 'ffmpeg'))
+        if ffmpeg_bin and os.path.exists(ffmpeg_bin):
+            with tasks_lock:
+                if task_id in tasks:
+                    tasks[task_id]['status'] = 'merging'
+                    tasks[task_id]['progress'] = 99
+            mp3_path = os.path.splitext(out_path)[0] + '.mp3'
+            cmd = [ffmpeg_bin, '-y', '-i', out_path, '-vn', '-ab', '192k', mp3_path]
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if res.returncode == 0 and os.path.exists(mp3_path):
+                try:
+                    os.remove(out_path)
+                except Exception:
+                    pass
+                return mp3_path
+    return out_path
 
 
 def youtube_extractor_args(client_list):
@@ -403,13 +585,7 @@ def mark_youtube_cookies_unhealthy(reason):
 
 
 def apply_platform_extractor_profile(opts, url, prefer_cookies=True, client_override=None, cookiefile_override=None):
-    """Apply extractor/cookie settings by platform.
-
-    Notes:
-    - For YouTube, we optionally attach a cookies.txt file (either the server's env cookies
-      or a per-request user-supplied cookies file).
-    - For non-YouTube, we avoid forcing YouTube extractor args/cookies.
-    """
+    """Apply extractor/cookie settings by platform."""
     host = get_host(url)
     is_yt = host in ('youtube.com', 'm.youtube.com', 'youtu.be')
 
@@ -440,14 +616,15 @@ def apply_platform_extractor_profile(opts, url, prefer_cookies=True, client_over
 def apply_ytdlp_transport_profile(opts):
     """
     Apply transport-level yt-dlp options that are safe across local and cloud runs.
-    Impersonation is opt-in via YTDLP_IMPERSONATE_TARGET because unsupported targets
-    cause hard failures on Render and other restricted environments.
     """
     js_runtimes = detect_js_runtimes()
     if js_runtimes:
         opts['js_runtimes'] = js_runtimes
     else:
         opts.pop('js_runtimes', None)
+
+    # Enable remote challenge solver script automatically to solve YouTube JS challenges
+    opts['remote_components'] = ['ejs:github']
 
     if YTDLP_IMPERSONATION_ENABLED and YTDLP_IMPERSONATE_TARGET:
         opts['impersonate'] = YTDLP_IMPERSONATE_TARGET
@@ -456,16 +633,20 @@ def apply_ytdlp_transport_profile(opts):
     return opts
 
 
-def apply_network_proxy_profile(opts):
+def apply_network_proxy_profile(opts, proxy_override=None):
     """Apply outbound proxy settings to yt-dlp when a proxy URL is configured."""
-    if NETWORK_PROXY_URL:
-        opts['proxy'] = NETWORK_PROXY_URL
+    proxy = (proxy_override or '').strip() or NETWORK_PROXY_URL
+    if proxy:
+        opts['proxy'] = proxy
+    else:
+        opts.pop('proxy', None)
     return opts
 
 
-def build_base_ydl_info_opts():
-    """Build base info opts with a rotated user-agent for each call to reduce bot fingerprinting."""
-    return {
+def build_base_ydl_info_opts(proxy_override=None):
+    """Build base info opts with a rotated user-agent and EJS solver."""
+    js_runtimes = detect_js_runtimes()
+    opts = {
         'quiet': False,
         'no_warnings': False,
         'skip_download': True,
@@ -477,28 +658,26 @@ def build_base_ydl_info_opts():
         'retries': 2,
         'extractor_retries': 2,
         'sleep_interval_requests': 1,
-        'http_headers': {
-            'User-Agent': get_rotated_user_agent(),
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Ch-Ua': '"Chromium";v="125", "Not.A/Brand";v="24"',
-            'Sec-Ch-Ua-Mobile': '?0',
-            'Sec-Ch-Ua-Platform': '"Windows"',
-        },
+        'remote_components': ['ejs:github'],
+        'user_agent': get_rotated_user_agent(),
     }
+    if js_runtimes:
+        opts['js_runtimes'] = js_runtimes
+    proxy = (proxy_override or '').strip() or NETWORK_PROXY_URL
+    if proxy:
+        opts['proxy'] = proxy
+    return opts
 
 BASE_YDL_INFO_OPTS = build_base_ydl_info_opts()
+
 
 def pick_format_string(fmt_type, quality):
     """
     Returns a format query string enforcing ffmpeg merging of isolated video and audio.
-    This unlocks YouTube DASH fragmented chunks for multi-concurrency speed.
+    Ensures seamless fallback for all video platforms and direct streams.
     """
     if fmt_type == 'audio':
-        return 'ba/bestaudio/best'
+        return 'ba/b/bestaudio/best'
     else:
         hm = {'best': 2160, '1080': 1080, '720': 720, '480': 480, '360': 360}
         max_h = hm.get(quality, 720)
@@ -506,56 +685,41 @@ def pick_format_string(fmt_type, quality):
             f'bv*[height<={max_h}]+ba/'
             f'b[height<={max_h}]/'
             f'bv*+ba/'
-            f'best'
+            f'b/best'
         )
 
 
 def build_youtube_profile_sequence(user_consented=False):
     """
-    Build a YouTube fallback ladder that prefers clients known to work without
-    PO tokens. When the user has accepted cookie consent, we use additional
-    human-like clients that have lower bot-detection rates.
+    Build a YouTube fallback ladder with latest client support.
     """
     profiles = []
 
-    # Cookie-backed paths are tried first for age-gated or account-sensitive videos.
     if should_use_youtube_cookies():
         profiles.extend([
+            {'name': 'cookie-web',        'use_cookies': True, 'clients': ['web']},
+            {'name': 'cookie-mweb',       'use_cookies': True, 'clients': ['mweb']},
+            {'name': 'cookie-android',    'use_cookies': True, 'clients': ['android']},
             {'name': 'cookie-tv',         'use_cookies': True, 'clients': ['tv']},
             {'name': 'cookie-embed',      'use_cookies': True, 'clients': ['web_embedded']},
             {'name': 'cookie-web-safari', 'use_cookies': True, 'clients': ['web_safari']},
         ])
 
-    # When user has given cookie consent, prioritize clients with human-like behavior
-    if user_consented:
-        profiles.extend([
-            {'name': 'consented-tv',          'use_cookies': False, 'clients': ['tv']},
-            {'name': 'consented-tv-simply',   'use_cookies': False, 'clients': ['tv_simply']},
-            {'name': 'consented-mweb',        'use_cookies': False, 'clients': ['mweb']},
-            {'name': 'consented-embed',       'use_cookies': False, 'clients': ['web_embedded']},
-            {'name': 'consented-web-safari',  'use_cookies': False, 'clients': ['web_safari']},
-            {'name': 'consented-web-creator', 'use_cookies': False, 'clients': ['web_creator']},
-        ])
-    else:
-        profiles.extend([
-            {'name': 'public-tv',         'use_cookies': False, 'clients': ['tv']},
-            {'name': 'public-embed',      'use_cookies': False, 'clients': ['web_embedded']},
-            {'name': 'public-web-safari', 'use_cookies': False, 'clients': ['web_safari']},
-            {'name': 'public-tv-simply',  'use_cookies': False, 'clients': ['tv_simply']},
-            {'name': 'public-mweb',       'use_cookies': False, 'clients': ['mweb']},
-        ])
-
-    enable_legacy_clients = os.environ.get('YTDLP_ENABLE_LEGACY_YOUTUBE_CLIENTS', '0').strip().lower() in ('1', 'true', 'yes', 'on')
-    if enable_legacy_clients:
-        profiles.extend([
-            {'name': 'legacy-web',  'use_cookies': False, 'clients': ['web']},
-            {'name': 'legacy-mweb', 'use_cookies': False, 'clients': ['mweb']},
-        ])
+    profiles.extend([
+        {'name': 'public-web',        'use_cookies': False, 'clients': ['web']},
+        {'name': 'public-mweb',       'use_cookies': False, 'clients': ['mweb']},
+        {'name': 'public-android',    'use_cookies': False, 'clients': ['android']},
+        {'name': 'public-ios',        'use_cookies': False, 'clients': ['ios']},
+        {'name': 'public-tv',         'use_cookies': False, 'clients': ['tv']},
+        {'name': 'public-embed',      'use_cookies': False, 'clients': ['web_embedded']},
+        {'name': 'public-web-safari', 'use_cookies': False, 'clients': ['web_safari']},
+        {'name': 'public-tv-simply',  'use_cookies': False, 'clients': ['tv_simply']},
+    ])
 
     return profiles
 
 
-def run_ytdlp_with_fallback(url, base_opts, download=False, cookiefile_override=None, user_consented=False):
+def run_ytdlp_with_fallback(url, base_opts, download=False, cookiefile_override=None, user_consented=False, proxy_override=None):
     profiles = build_youtube_profile_sequence(user_consented=user_consented) if is_youtube_url(url) else [{
         'name': 'generic',
         'use_cookies': False,
@@ -563,17 +727,22 @@ def run_ytdlp_with_fallback(url, base_opts, download=False, cookiefile_override=
     }]
 
     last_error = None
+    has_user_cookiefile = bool(cookiefile_override and os.path.exists(cookiefile_override))
+    has_server_cookies  = should_use_youtube_cookies()
+    has_any_cookies     = has_user_cookiefile or has_server_cookies
 
-    # If we have no cookies at all, don't spam many YouTube client attempts when the
-    # failure is clearly "sign in / not a bot". That pattern quickly turns into 429.
-    has_any_cookies = bool(
-        (cookiefile_override and os.path.exists(cookiefile_override))
-        or should_use_youtube_cookies()
-    )
-    max_auth_attempts_without_cookies = 2
+    max_auth_failures = 2 if has_any_cookies else 3
     auth_failures = 0
+    seen_429_with_auth = False
+    cookies_failed = False
 
     for index, profile in enumerate(profiles):
+        if seen_429_with_auth:
+            break
+
+        if profile['use_cookies'] and cookies_failed:
+            continue
+
         use_cookiefile = cookiefile_override if profile['use_cookies'] else None
 
         opts = dict(base_opts)
@@ -585,7 +754,7 @@ def run_ytdlp_with_fallback(url, base_opts, download=False, cookiefile_override=
             cookiefile_override=use_cookiefile,
         )
         opts = apply_ytdlp_transport_profile(opts)
-        opts = apply_network_proxy_profile(opts)
+        opts = apply_network_proxy_profile(opts, proxy_override=proxy_override)
 
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -597,31 +766,38 @@ def run_ytdlp_with_fallback(url, base_opts, download=False, cookiefile_override=
             normalized = normalize_ydl_error_message(last_error)
 
             is_authish = is_youtube_auth_error(last_error, url=url)
+            is_429     = 'http error 429' in normalized or 'too many requests' in normalized
 
-            # Only mark the *server* cookies unhealthy, not per-user uploaded cookies.
-            if profile['use_cookies'] and is_authish and not cookiefile_override:
-                mark_youtube_cookies_unhealthy(last_error)
+            if profile['use_cookies']:
+                cookies_failed = True
+                if not cookiefile_override:
+                    mark_youtube_cookies_unhealthy(last_error)
+                # When cookies fail, skip remaining cookie-dependent profiles and proceed to public profiles
+                continue
 
-            if is_youtube_url(url) and not has_any_cookies and is_authish:
+            if is_youtube_url(url) and is_authish:
                 auth_failures += 1
-                if auth_failures >= max_auth_attempts_without_cookies:
+                if is_429:
+                    seen_429_with_auth = True
+                if auth_failures >= max_auth_failures or seen_429_with_auth:
                     raise
 
             if is_youtube_url(url) and index < len(profiles) - 1:
                 if any(token in normalized for token in ('private video', 'members-only', 'video unavailable')):
                     raise
-                if 'http error 429' in normalized or 'too many requests' in normalized:
-                    time.sleep(min(5, 1 + index * 2))
+                if is_429 and not is_authish:
+                    time.sleep(min(3, 1 + index))
                 continue
 
             if is_retryable_ydl_error(last_error):
-                if 'http error 429' in normalized or 'too many requests' in normalized:
-                    time.sleep(min(5, 1 + index * 2))
+                if is_429:
+                    time.sleep(min(3, 1 + index))
                 continue
 
             raise
 
     raise Exception(last_error or 'Download failed')
+
 
 # ──────────────────────────────────────────────
 # Routes
@@ -629,7 +805,19 @@ def run_ytdlp_with_fallback(url, base_opts, download=False, cookiefile_override=
 
 @app.route('/')
 def index():
-    return send_from_directory('.', 'index.html')
+    resp = send_from_directory('.', 'index.html')
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+    return resp
+
+
+@app.route('/<path:filename>')
+def serve_static(filename):
+    """Serve static files like images and stylesheets."""
+    if os.path.exists(filename) and not filename.endswith(('.py', '.env', '.spec', '.txt', '.sh')):
+        return send_from_directory('.', filename)
+    return jsonify({'error': 'Not found'}), 404
 
 
 @app.route('/local-agent', methods=['GET'])
@@ -666,14 +854,18 @@ def download_installer():
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint for UptimeRobot to keep the app alive."""
+    js_info = detect_js_runtimes()
     return jsonify({
         'status': 'ok',
         'message': 'App is running',
         'app_version': APP_VERSION,
         'yt_dlp_version': YT_DLP_VERSION,
+        'js_runtime': list(js_info.keys())[0] if js_info else 'none',
+        'ffmpeg_available': bool(FFMPEG_LOCATION or shutil.which('ffmpeg')),
         'youtube_cookies_loaded': bool(COOKIES_FILE and os.path.exists(COOKIES_FILE)),
         'youtube_cookies_healthy': YOUTUBE_COOKIES_HEALTHY,
         'youtube_cookies_source': COOKIES_SOURCE,
+        'proxy_configured': bool(NETWORK_PROXY_URL),
     }), 200
 
 
@@ -688,12 +880,29 @@ def version_check():
     }), 200
 
 
+@app.route('/test_proxy', methods=['POST'])
+@limiter.limit("30 per minute")
+def test_proxy():
+    """Test connection to a custom proxy URL (HTTP/HTTPS/SOCKS5)."""
+    data = request.json or {}
+    proxy = (data.get('proxy') or '').strip()
+    if not proxy:
+        return jsonify({'ok': False, 'error': 'Proxy URL is required'}), 400
+    try:
+        proxies = {'http': proxy, 'https': proxy}
+        r = req_lib.get('https://api.ipify.org?format=json', proxies=proxies, timeout=8)
+        if r.ok:
+            ip = r.json().get('ip', 'Connected')
+            return jsonify({'ok': True, 'ip': ip, 'message': f'Proxy connected! External IP: {ip}'})
+        return jsonify({'ok': False, 'error': f'Proxy returned HTTP {r.status_code}'}), 400
+    except Exception as e:
+        return jsonify({'ok': False, 'error': f'Proxy connection failed: {str(e)[:120]}'}), 400
+
+
 @app.route('/accept_cookies', methods=['POST'])
 @limiter.limit("30 per minute")
 def accept_cookies():
-    """Called by the frontend cookie consent banner when user clicks 'Accept'.
-    Registers the user's IP as having given consent, which enables a wider
-    set of YouTube download clients and human-like request headers."""
+    """Called by the frontend cookie consent banner when user clicks 'Accept'."""
     requester_ip = get_remote_address()
     register_consent(requester_ip)
     return jsonify({'ok': True, 'message': 'Cookie consent registered. Downloads will use enhanced mode.'}), 200
@@ -705,18 +914,24 @@ def get_info():
     """Return video metadata. Fast — no download."""
     data = request.json or {}
     url = data.get('url', '').strip()
+    user_proxy = (data.get('proxy') or '').strip()
     ok, url = validate_url(url)
     if not ok:
         return jsonify({'error': url}), 400
     url = normalize_youtube_url(url)
 
-    # Check if this user has accepted cookie consent (enables enhanced download mode)
+    # 1. Direct media link fast path
+    if is_direct_media_url(url):
+        direct_info = inspect_direct_media_link(url, proxy=user_proxy)
+        if direct_info:
+            return jsonify(direct_info), 200
+
+    # Check if this user has accepted cookie consent
     requester_ip = get_remote_address()
     user_consented = is_consented_ip(requester_ip)
 
     cookiefile = None
     try:
-        # Optional per-request user cookies (never persisted; written to a temp file and deleted).
         user_cookie_b64 = (data.get('youtube_cookies_base64') or '').strip()
         user_cookie_raw = (data.get('youtube_cookies') or '').strip()
         if user_cookie_b64 or user_cookie_raw:
@@ -726,17 +941,18 @@ def get_info():
                 prefix='yt_req_info_',
             )
 
-        info_opts = build_base_ydl_info_opts()  # fresh rotated UA each call
+        info_opts = build_base_ydl_info_opts(proxy_override=user_proxy)
         info, _, _ = run_ytdlp_with_fallback(
             url, info_opts, download=False,
             cookiefile_override=cookiefile,
             user_consented=user_consented,
+            proxy_override=user_proxy,
         )
 
         dur = int(info.get('duration') or 0)
         return jsonify({
             'title':      (info.get('title') or 'Unknown')[:200],
-            'duration':   f"{dur//60}:{dur%60:02d}",
+            'duration':   f"{dur//60}:{dur%60:02d}" if dur else 'Stream',
             'thumbnail':  (info.get('thumbnail') or '')[:500],
             'platform':   (info.get('extractor_key') or 'Unknown')[:50],
             'uploader':   (info.get('uploader') or '')[:100],
@@ -744,6 +960,12 @@ def get_info():
         }), 200
 
     except Exception as e:
+        # Fallback inspection for direct streams on non-YouTube URLs
+        if not is_youtube_url(url):
+            fallback_info = inspect_direct_media_link(url, proxy=user_proxy)
+            if fallback_info:
+                return jsonify(fallback_info), 200
+
         app.logger.warning(f"Info error: {e}")
         return jsonify({'error': classify_ydl_error(str(e), url=url)}), 400
     finally:
@@ -755,7 +977,7 @@ def get_info():
 
 
 # ── Async Task Worker ──
-def dl_worker(task_id, url, fmt_type, quality, user_cookiefile=None, user_consented=False):
+def dl_worker(task_id, url, fmt_type, quality, user_cookiefile=None, user_consented=False, user_proxy=None):
     with tasks_lock:
         if task_id not in tasks:
             return
@@ -763,6 +985,27 @@ def dl_worker(task_id, url, fmt_type, quality, user_cookiefile=None, user_consen
 
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
     out_tmpl  = os.path.join(tempfile.gettempdir(), f"dl_{timestamp}.%(ext)s")
+
+    # 1. Direct media URL fast path
+    if is_direct_media_url(url):
+        try:
+            parsed = urlparse(url)
+            ext = os.path.splitext(parsed.path)[1].lower() or ('.mp3' if fmt_type == 'audio' else '.mp4')
+            dest = os.path.join(tempfile.gettempdir(), f"dl_{timestamp}{ext}")
+            final_file = download_direct_stream(url, dest, task_id=task_id, proxy=user_proxy, fmt_type=fmt_type)
+            actual_ext = os.path.splitext(final_file)[1].lower()
+            file_title = safe_name(os.path.splitext(os.path.basename(parsed.path))[0]) + actual_ext
+
+            with tasks_lock:
+                if task_id in tasks:
+                    tasks[task_id]['status'] = 'completed'
+                    tasks[task_id]['progress'] = 100
+                    tasks[task_id]['filepath'] = final_file
+                    tasks[task_id]['filename'] = file_title
+                    tasks[task_id]['extractor_profile'] = 'direct-stream'
+            return
+        except Exception as direct_err:
+            print(f"[DIRECT_STREAM] Direct download failed, falling back to yt-dlp: {direct_err}")
 
     def progress_hook(d):
         if d['status'] == 'downloading':
@@ -792,17 +1035,8 @@ def dl_worker(task_id, url, fmt_type, quality, user_cookiefile=None, user_consen
         'concurrent_fragment_downloads': 15,
         'http_chunk_size': 10485760,
         'hls_prefer_native': False,
-        'http_headers': {
-            'User-Agent': get_rotated_user_agent(),  # rotated per-request
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Ch-Ua': '"Chromium";v="125", "Not.A/Brand";v="24"',
-            'Sec-Ch-Ua-Mobile': '?0',
-            'Sec-Ch-Ua-Platform': '"Windows"',
-        },
+        'remote_components': ['ejs:github'],
+        'user_agent': get_rotated_user_agent(),
         'age_limit': None,
         'noprogress': True,
         'skip_unavailable_fragments': True,
@@ -816,9 +1050,8 @@ def dl_worker(task_id, url, fmt_type, quality, user_cookiefile=None, user_consen
 
     ydl_opts = apply_platform_extractor_profile(ydl_opts, url, prefer_cookies=True, cookiefile_override=user_cookiefile)
     ydl_opts = apply_ytdlp_transport_profile(ydl_opts)
-    ydl_opts = apply_network_proxy_profile(ydl_opts)
+    ydl_opts = apply_network_proxy_profile(ydl_opts, proxy_override=user_proxy)
 
-    # Add ffmpeg location if detected
     if FFMPEG_LOCATION:
         ydl_opts['ffmpeg_location'] = FFMPEG_LOCATION
 
@@ -839,27 +1072,43 @@ def dl_worker(task_id, url, fmt_type, quality, user_cookiefile=None, user_consen
                 download=True,
                 cookiefile_override=user_cookiefile,
                 user_consented=user_consented,
+                proxy_override=user_proxy,
             )
         except Exception as first_err:
+            # Fallback to direct stream download if yt-dlp failed on non-YouTube
+            if not is_youtube_url(url):
+                try:
+                    ext = '.mp3' if fmt_type == 'audio' else '.mp4'
+                    dest = os.path.join(tempfile.gettempdir(), f"dl_{timestamp}{ext}")
+                    final_file = download_direct_stream(url, dest, task_id=task_id, proxy=user_proxy, fmt_type=fmt_type)
+                    file_title = safe_name(os.path.basename(urlparse(url).path)) + ext
+                    with tasks_lock:
+                        if task_id in tasks:
+                            tasks[task_id]['status'] = 'completed'
+                            tasks[task_id]['progress'] = 100
+                            tasks[task_id]['filepath'] = final_file
+                            tasks[task_id]['filename'] = file_title
+                            tasks[task_id]['extractor_profile'] = 'direct-stream-fallback'
+                    return
+                except Exception:
+                    pass
             raise first_err
 
-        # File is fully merged/downloaded now on disk.
         filename = prepared
-        if not os.path.exists(filename):
-            base = os.path.splitext(prepared)[0]
+        if not filename or not os.path.exists(filename):
+            base = os.path.splitext(prepared or out_tmpl)[0]
             for e in ['.mp4', '.webm', '.mkv', '.m4a', '.opus', '.ogg', '.mp3', '.3gp']:
                 if os.path.exists(base + e):
                     filename = base + e
                     break
 
-        # Fallback to tmp dir matches
-        if not os.path.exists(filename):
+        if not filename or not os.path.exists(filename):
             prefix = f"dl_{timestamp}"
             matches = [f for f in os.listdir(tempfile.gettempdir()) if f.startswith(prefix)]
             if matches:
                 filename = os.path.join(tempfile.gettempdir(), matches[0])
 
-        if not os.path.exists(filename):
+        if not filename or not os.path.exists(filename):
             raise Exception("File not found on server after processing.")
 
         actual_ext = os.path.splitext(filename)[1].lower()
@@ -894,6 +1143,7 @@ def start_download():
     url       = data.get('url', '').strip()
     fmt_type  = data.get('format', 'video')
     quality   = data.get('quality', '720')
+    user_proxy = (data.get('proxy') or '').strip()
 
     ok, url = validate_url(url)
     if not ok:
@@ -902,12 +1152,9 @@ def start_download():
     if fmt_type not in ('video', 'audio'):
         return jsonify({'error': 'Invalid format'}), 400
 
-    # Check if this user has accepted cookie consent (enables enhanced download mode)
     requester_ip = get_remote_address()
     user_consented = is_consented_ip(requester_ip)
 
-    # Optional per-request user cookies (base64 preferred). This enables age/login-gated
-    # YouTube videos without storing credentials server-side.
     user_cookiefile = None
     user_cookie_b64 = (data.get('youtube_cookies_base64') or '').strip()
     user_cookie_raw = (data.get('youtube_cookies') or '').strip()
@@ -935,7 +1182,7 @@ def start_download():
 
     thread = threading.Thread(
         target=dl_worker,
-        args=(task_id, url, fmt_type, quality, user_cookiefile, user_consented)
+        args=(task_id, url, fmt_type, quality, user_cookiefile, user_consented, user_proxy)
     )
     thread.daemon = True
     thread.start()
