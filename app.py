@@ -222,10 +222,8 @@ if NETWORK_PROXY_URL:
     for env_name in ('ALL_PROXY', 'HTTPS_PROXY', 'HTTP_PROXY'):
         os.environ.setdefault(env_name, NETWORK_PROXY_URL)
     print('[INIT] ✓ Outbound proxy enabled for downloads')
-# Prefer tokenless clients by default. Token-requiring clients can be enabled explicitly
-# via environment variables when a PO token provider or trusted session is available.
-YOUTUBE_CLIENTS_WITH_COOKIES = [c.strip() for c in os.environ.get('YTDLP_YOUTUBE_CLIENTS_WITH_COOKIES', 'tv,web_embedded,web_safari').split(',') if c.strip()]
-YOUTUBE_CLIENTS_WITHOUT_COOKIES = [c.strip() for c in os.environ.get('YTDLP_YOUTUBE_CLIENTS_WITHOUT_COOKIES', 'tv,web_embedded,web_safari,tv_simply,mweb').split(',') if c.strip()]
+YOUTUBE_CLIENTS_WITH_COOKIES = [c.strip() for c in os.environ.get('YTDLP_YOUTUBE_CLIENTS_WITH_COOKIES', 'tv,web_embedded,android,ios,web_safari').split(',') if c.strip()]
+YOUTUBE_CLIENTS_WITHOUT_COOKIES = [c.strip() for c in os.environ.get('YTDLP_YOUTUBE_CLIENTS_WITHOUT_COOKIES', 'ios,android,tv,web_embedded,tv_simply,mweb').split(',') if c.strip()]
 YOUTUBE_COOKIES_AVAILABLE = bool(COOKIES_FILE and os.path.exists(COOKIES_FILE))
 YOUTUBE_COOKIES_HEALTHY = YOUTUBE_COOKIES_AVAILABLE
 YOUTUBE_COOKIES_LOCK = threading.Lock()
@@ -559,10 +557,11 @@ def youtube_extractor_args(client_list):
     """
     cleaned_clients = [client for client in (client_list or []) if client]
     if not cleaned_clients:
-        cleaned_clients = ['web']
+        cleaned_clients = ['ios', 'android', 'tv', 'web_embedded', 'mweb']
     return {
         'youtube': {
             'player_client': cleaned_clients,
+            'player_skip': ['js', 'configs', 'webpage'],
         }
     }
 
@@ -623,8 +622,12 @@ def apply_ytdlp_transport_profile(opts):
     else:
         opts.pop('js_runtimes', None)
 
-    # Enable remote challenge solver script automatically to solve YouTube JS challenges
     opts['remote_components'] = ['ejs:github']
+    opts['geo_bypass'] = True
+    opts['no_check_certificate'] = True
+    opts['socket_timeout'] = 20
+    opts['retries'] = 3
+    opts['fragment_retries'] = 3
 
     if YTDLP_IMPERSONATION_ENABLED and YTDLP_IMPERSONATE_TARGET:
         opts['impersonate'] = YTDLP_IMPERSONATE_TARGET
@@ -692,28 +695,29 @@ def pick_format_string(fmt_type, quality):
 def build_youtube_profile_sequence(user_consented=False):
     """
     Build a YouTube fallback ladder with latest client support.
+    Prioritizes mobile, TV, and embedded API clients which do not trigger datacenter 429 bot checks.
     """
     profiles = []
 
     if should_use_youtube_cookies():
         profiles.extend([
-            {'name': 'cookie-web',        'use_cookies': True, 'clients': ['web']},
-            {'name': 'cookie-mweb',       'use_cookies': True, 'clients': ['mweb']},
-            {'name': 'cookie-android',    'use_cookies': True, 'clients': ['android']},
+            {'name': 'cookie-multi',      'use_cookies': True, 'clients': ['tv', 'web_embedded', 'android', 'ios', 'web']},
             {'name': 'cookie-tv',         'use_cookies': True, 'clients': ['tv']},
             {'name': 'cookie-embed',      'use_cookies': True, 'clients': ['web_embedded']},
-            {'name': 'cookie-web-safari', 'use_cookies': True, 'clients': ['web_safari']},
+            {'name': 'cookie-android',    'use_cookies': True, 'clients': ['android']},
+            {'name': 'cookie-web',        'use_cookies': True, 'clients': ['web']},
         ])
 
     profiles.extend([
-        {'name': 'public-web',        'use_cookies': False, 'clients': ['web']},
-        {'name': 'public-mweb',       'use_cookies': False, 'clients': ['mweb']},
-        {'name': 'public-android',    'use_cookies': False, 'clients': ['android']},
-        {'name': 'public-ios',        'use_cookies': False, 'clients': ['ios']},
-        {'name': 'public-tv',         'use_cookies': False, 'clients': ['tv']},
-        {'name': 'public-embed',      'use_cookies': False, 'clients': ['web_embedded']},
-        {'name': 'public-web-safari', 'use_cookies': False, 'clients': ['web_safari']},
-        {'name': 'public-tv-simply',  'use_cookies': False, 'clients': ['tv_simply']},
+        {'name': 'cloud-mobile-multi',     'use_cookies': False, 'clients': ['ios', 'android', 'tv', 'web_embedded', 'tv_simply', 'mweb']},
+        {'name': 'public-ios',             'use_cookies': False, 'clients': ['ios']},
+        {'name': 'public-android',         'use_cookies': False, 'clients': ['android']},
+        {'name': 'public-tv',              'use_cookies': False, 'clients': ['tv']},
+        {'name': 'public-embed',           'use_cookies': False, 'clients': ['web_embedded']},
+        {'name': 'public-tv-simply',       'use_cookies': False, 'clients': ['tv_simply']},
+        {'name': 'public-mweb',            'use_cookies': False, 'clients': ['mweb']},
+        {'name': 'public-web-safari',      'use_cookies': False, 'clients': ['web_safari']},
+        {'name': 'public-web',             'use_cookies': False, 'clients': ['web']},
     ])
 
     return profiles
@@ -727,30 +731,20 @@ def run_ytdlp_with_fallback(url, base_opts, download=False, cookiefile_override=
     }]
 
     last_error = None
-    has_user_cookiefile = bool(cookiefile_override and os.path.exists(cookiefile_override))
-    has_server_cookies  = should_use_youtube_cookies()
-    has_any_cookies     = has_user_cookiefile or has_server_cookies
-
-    max_auth_failures = 2 if has_any_cookies else 3
-    auth_failures = 0
-    seen_429_with_auth = False
     cookies_failed = False
 
     for index, profile in enumerate(profiles):
-        if seen_429_with_auth:
-            break
-
-        if profile['use_cookies'] and cookies_failed:
+        if profile.get('use_cookies') and cookies_failed:
             continue
 
-        use_cookiefile = cookiefile_override if profile['use_cookies'] else None
+        use_cookiefile = cookiefile_override if profile.get('use_cookies') else None
 
         opts = dict(base_opts)
         opts = apply_platform_extractor_profile(
             opts,
             url,
-            prefer_cookies=profile['use_cookies'],
-            client_override=profile['clients'],
+            prefer_cookies=profile.get('use_cookies', False),
+            client_override=profile.get('clients'),
             cookiefile_override=use_cookiefile,
         )
         opts = apply_ytdlp_transport_profile(opts)
@@ -765,36 +759,23 @@ def run_ytdlp_with_fallback(url, base_opts, download=False, cookiefile_override=
             last_error = str(exc)
             normalized = normalize_ydl_error_message(last_error)
 
-            is_authish = is_youtube_auth_error(last_error, url=url)
-            is_429     = 'http error 429' in normalized or 'too many requests' in normalized
-
-            if profile['use_cookies']:
+            if profile.get('use_cookies'):
                 cookies_failed = True
                 if not cookiefile_override:
                     mark_youtube_cookies_unhealthy(last_error)
-                # When cookies fail, skip remaining cookie-dependent profiles and proceed to public profiles
                 continue
 
-            if is_youtube_url(url) and is_authish:
-                auth_failures += 1
-                if is_429:
-                    seen_429_with_auth = True
-                if auth_failures >= max_auth_failures or seen_429_with_auth:
-                    raise
+            # If the video is truly private or removed, stop
+            if any(token in normalized for token in ('private video', 'members-only', 'video unavailable', 'this video has been removed')):
+                raise
 
+            # On cloud hosts, if a client fails or hits 429/bot-check, NEVER abort early!
+            # Continue automatically through all fallback clients (ios -> android -> tv -> embed -> etc.)
             if is_youtube_url(url) and index < len(profiles) - 1:
-                if any(token in normalized for token in ('private video', 'members-only', 'video unavailable')):
-                    raise
-                if is_429 and not is_authish:
-                    time.sleep(min(3, 1 + index))
                 continue
 
-            if is_retryable_ydl_error(last_error):
-                if is_429:
-                    time.sleep(min(3, 1 + index))
+            if is_retryable_ydl_error(last_error) and index < len(profiles) - 1:
                 continue
-
-            raise
 
     raise Exception(last_error or 'Download failed')
 
