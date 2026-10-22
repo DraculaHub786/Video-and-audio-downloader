@@ -1,4 +1,4 @@
-# StreamGrab - Video & Audio Downloader
+# AuvidReaper - Video & Audio Harvester
 ## Now with One-Click Local Helper!
 
 ### What's Changed?
@@ -12,18 +12,17 @@
 ## Quick Start (New Users)
 
 ### 1. Download the Helper
-Visit: https://video-downloader-y8or.onrender.com/
-- Click **"Download StreamGrab (Windows)"** button
-- Or download directly: [StreamGrab.exe (95 MB)](https://video-downloader-y8or.onrender.com/download-installer)
+- Click **"Desktop Helper"** in the top navigation or modal
+- Download: `AuvidReaper-installer.exe`
 
 ### 2. Run the Installer
-- Find `StreamGrab.exe` in your Downloads folder
+- Find `AuvidReaper.exe` in your Downloads folder
 - Double-click to run
 - It will start automatically in your system tray
 
-### 3. Start Downloading!
-- Go back to: https://video-downloader-y8or.onrender.com/
-- You'll see a **green dot** indicating the helper is connected
+### 3. Start Harvesting Streams!
+- Open the AuvidReaper Web UI
+- You'll see a **green dot** indicating the engine is connected
 - Paste any video URL and download!
 
 ---
@@ -33,10 +32,10 @@ Visit: https://video-downloader-y8or.onrender.com/
 ```
 Your Computer (Local)          →    Cloud Server (Render)
                                         ↓
-StreamGrab.exe runs                 Website UI
+AuvidReaper.exe runs                Website UI
 (in background, tray)              ↓ polls
     ↓                              ↓
-YouTube download                Detects local helper
+YouTube/TikTok download         Detects local helper
 happens on YOUR internet         ↓
     ↓                           Routes downloads
 Saved to YOUR device            locally
@@ -120,8 +119,8 @@ The `StreamGrab.exe` application:
 
 ### "Helper not detected" error
 **Solution:**
-1. Make sure `StreamGrab.exe` is running (check system tray)
-2. Look for StreamGrab icon in bottom right corner
+1. Make sure `AuvidReaper.exe` is running (check system tray)
+2. Look for AuvidReaper icon in bottom right corner
 3. If not there, run the exe again
 4. Click "Check Connection" button on the website
 
@@ -130,23 +129,23 @@ The `StreamGrab.exe` application:
 1. Check internet connection
 2. Try a different video
 3. Restart the helper:
-   - Right-click StreamGrab icon in tray
+   - Right-click AuvidReaper icon in tray
    - Click "Quit"
-   - Run `StreamGrab.exe` again
+   - Run `AuvidReaper.exe` again
 4. Try running as Administrator
 
 ### Antivirus blocked the download
 **Solution:**
 1. Check your antivirus quarantine folder
-2. Add to whitelist: `StreamGrab.exe`
+2. Add to whitelist: `AuvidReaper.exe`
 3. Re-download and run
 
 ### Where do downloads go?
 **A:** To your default Downloads folder (usually `C:\Users\YourName\Downloads\`)
 
 ### How do I uninstall?
-**A:** Just delete the `StreamGrab.exe` file. That's it!
-- Optionally delete cache folder: `%USERPROFILE%\.streamgrab_cache\`
+**A:** Just delete the `AuvidReaper.exe` file. That's it!
+- Optionally delete cache folder: `%USERPROFILE%\.auvidreaper_cache\`
 
 ---
 
@@ -162,7 +161,7 @@ python local_agent_v2.py
 ```bash
 python installer_builder.py
 ```
-Creates `dist/StreamGrab.exe`
+Creates `dist/AuvidReaper.exe`
 
 ### Manual Installation
 ```bash

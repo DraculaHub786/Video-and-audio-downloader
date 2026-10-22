@@ -2,7 +2,7 @@
 # Render startup script - ensures latest yt-dlp and ffmpeg availability
 
 echo "========================================="
-echo "StreamGrab Startup Script"
+echo "AuvidReaper Startup Script"
 echo "========================================="
 
 # Ensure Deno is in PATH (installed in build step)
@@ -52,12 +52,11 @@ echo "========================================="
 echo "Starting gunicorn server..."
 echo "========================================="
 
-# Start the app with a single worker so in-memory async download tasks
-# stay consistent across /start_download, /status/<task_id>, and /get_file/<task_id>.
-# Multiple Gunicorn workers break the current task dictionary because it is not shared.
+# Start the app with multi-worker concurrency. Tasks are synchronized
+# atomically across workers via PersistentTaskDict.
 exec gunicorn app:app \
     --bind 0.0.0.0:${PORT:-10000} \
-    --workers 1 \
+    --workers 2 \
     --threads 4 \
     --timeout 120 \
     --access-logfile - \

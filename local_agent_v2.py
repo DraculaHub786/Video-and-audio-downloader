@@ -68,7 +68,7 @@ except ImportError as e:
 # ── Local Agent Configuration ──
 HOST = '127.0.0.1'
 PORT = 9797
-CACHE_DIR = Path.home() / '.streamgrab_cache'
+CACHE_DIR = Path.home() / '.auvidreaper_cache'
 CACHE_DIR.mkdir(exist_ok=True)
 
 # Create wrapper Flask app for local agent
@@ -121,7 +121,7 @@ class TrayIcon:
     def setup_menu(self):
         """Build tray menu."""
         return Menu(
-            MenuItem('StreamGrab Local Helper', enabled=False),
+            MenuItem('AuvidReaper Local Helper', enabled=False),
             MenuItem('-', None),
             MenuItem(f'Running on {HOST}:{PORT}', enabled=False),
             MenuItem('Dashboard', self.on_open_dashboard),
@@ -138,7 +138,7 @@ class TrayIcon:
         try:
             icon_image = self._create_icon_image()
             self.icon = Icon(
-                "StreamGrab",
+                "AuvidReaper",
                 icon_image,
                 menu=self.setup_menu()
             )
@@ -155,26 +155,27 @@ def helper_status():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>StreamGrab Local Helper Status</title>
+        <title>AuvidReaper Local Helper Status</title>
         <style>
-            body { font-family: Arial, sans-serif; margin: 20px; background: #f0f0f0; }
-            .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
-            .status { color: #22c55e; font-weight: bold; font-size: 18px; }
-            .info { margin: 10px 0; color: #666; }
-            code { background: #eee; padding: 2px 6px; border-radius: 3px; }
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; background: #060a12; color: #e2e8f0; }
+            .container { max-width: 600px; margin: 40px auto; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(56, 189, 248, 0.2); padding: 28px; border-radius: 18px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); backdrop-filter: blur(20px); }
+            .status { color: #2dd4bf; font-weight: bold; font-size: 18px; }
+            .info { margin: 16px 0; color: #94a3b8; }
+            code { background: rgba(255,255,255,0.08); color: #38bdf8; padding: 3px 8px; border-radius: 6px; }
+            h1 { color: #f8fafc; margin-top: 0; }
         </style>
     </head>
     <body>
         <div class="container">
-            <h1>✓ StreamGrab Local Helper</h1>
-            <p class="status">Status: RUNNING</p>
+            <h1>✓ AuvidReaper Local Helper</h1>
+            <p class="status">Status: ACTIVE &amp; RUNNING</p>
             <div class="info">
                 <p><strong>Host:</strong> <code>''' + HOST + '''</code></p>
                 <p><strong>Port:</strong> <code>''' + str(PORT) + '''</code></p>
                 <p><strong>Cache:</strong> <code>''' + str(CACHE_DIR) + '''</code></p>
             </div>
-            <p><strong>The Render UI will automatically detect and use this helper.</strong></p>
-            <p><small>Keep this window/icon running to enable local downloads.</small></p>
+            <p><strong>The AuvidReaper Web UI will automatically detect and route through this helper.</strong></p>
+            <p><small style="color:#64748b;">Keep this helper running in your system tray to harvest high-speed streams locally.</small></p>
         </div>
     </body>
     </html>
@@ -184,7 +185,7 @@ def helper_status():
 # ── Main Entry ──
 def main():
     print("=" * 60)
-    print("StreamGrab Local Helper v1.0")
+    print("AuvidReaper Local Helper v2.5")
     print("=" * 60)
     print(f"[*] Starting on {HOST}:{PORT}")
     print(f"[*] Cache directory: {CACHE_DIR}")

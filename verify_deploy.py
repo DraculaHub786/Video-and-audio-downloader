@@ -5,11 +5,24 @@ Run this after deployment to verify the app is healthy.
 """
 
 import sys
+import io
 import subprocess
 import shutil
 
+# Ensure UTF-8 output across Windows and all platforms safely
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+if hasattr(sys.stderr, 'reconfigure'):
+    try:
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
 print("=" * 60)
-print("StreamGrab - Deployment Verification")
+print("AuvidReaper - Deployment Verification")
 print("=" * 60)
 print()
 

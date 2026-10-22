@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  auvidreaper:
+    build: .
+    image: auvidreaper:latest
+    container_name: auvidreaper
+    restart: unless-stopped
+    ports:
+      - "${PORT:-5000}:${PORT:-5000}"
+    environment:
+      - PORT=${PORT:-5000}
+      - ENABLE_YOUTUBE_COOKIES=auto
+      # Optional: Outbound proxy for cloud datacenter IP bypass
+      # - ALL_PROXY=http://user:pass@proxy.example.com:8080
+      # - YOUTUBE_COOKIES_BASE64=your_base64_cookies_here
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${PORT:-5000}/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: auvidreaper
+    runtime: python
+    buildCommand: bash build.sh
+    startCommand: bash render_deploy.sh
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: ENABLE_YOUTUBE_COOKIES
+        value: auto
+      - key: APP_VERSION
+        value: 2026-04-26-cloud-native-extractor

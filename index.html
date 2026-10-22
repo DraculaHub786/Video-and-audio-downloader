@@ -3,54 +3,86 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>StreamGrab — Next-Gen Lossless Video &amp; Audio Downloader</title>
-    <meta name="description" content="Ultra-fast, studio-quality lossless media downloader for YouTube, TikTok, Instagram, Twitter/X, SoundCloud, and 1000+ sites. Powered by modular stream extraction.">
+    <title>AuvidReaper — Universal Studio-Grade Video &amp; Audio Downloader</title>
+    <meta name="description" content="AuvidReaper: Ultra-fast, studio-quality lossless media harvester and downloader for YouTube, TikTok, Instagram Reels, Twitter/X, SoundCloud, and 1,000+ streaming sites.">
+    
+    <!-- Preconnect & Modern Typography -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Three.js 3D WebGL Engine for physically based obsidian spheres & real-time specular lighting -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
     <style>
+        /* ── Design System & Color Tokens (Obsidian Space, Real Frosted Glass, Aqua Rim) ── */
         :root {
-            --bg-canvas: #07050f;
-            --bg-card: rgba(17, 12, 33, 0.78);
-            --bg-card-hover: rgba(26, 19, 48, 0.85);
-            --bg-input: rgba(10, 7, 22, 0.82);
-            --bg-pill: rgba(255, 255, 255, 0.06);
-            --bg-pill-active: rgba(255, 255, 255, 0.16);
+            --bg-canvas: #000000;
+            --bg-canvas-deep: #020408;
+            
+            /* Realistic Glass Card Surfaces (Translucent Smoky Refraction) */
+            --glass-card-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(18, 24, 38, 0.42) 32%, rgba(7, 11, 20, 0.74) 100%);
+            --glass-subtle-bg: rgba(14, 20, 34, 0.45);
+            --glass-input-bg: rgba(5, 9, 18, 0.72);
+            --glass-pill-bg: rgba(255, 255, 255, 0.06);
+            --glass-pill-active: rgba(34, 211, 238, 0.18);
 
-            --border-subtle: rgba(255, 255, 255, 0.08);
-            --border-card: rgba(255, 255, 255, 0.12);
-            --border-glow: rgba(236, 72, 153, 0.35);
-            --border-focus: #c084fc;
+            /* Specular Edge Highlights (Apple iPhone / visionOS Bevels) */
+            --glass-border: rgba(255, 255, 255, 0.35);
+            --glass-border-bright: rgba(255, 255, 255, 0.65);
+            --glass-border-focus: #22d3ee;
+            --glass-border-teal: rgba(20, 184, 166, 0.4);
 
-            --text-main: #fcfaff;
-            --text-sub: #b4a8c9;
-            --text-dim: #7f7299;
+            /* Typography Colors */
+            --text-pure: #ffffff;
+            --text-heading: #f0f9ff;
+            --text-sub: #94a3b8;
+            --text-dim: #64748b;
+            --text-aqua: #38bdf8;
+            --text-teal: #2dd4bf;
 
-            --accent-pink: #ec4899;
-            --accent-rose: #f43f5e;
-            --accent-purple: #a855f7;
-            --accent-violet: #8b5cf6;
-            --accent-cyan: #06b6d4;
-            --accent-amber: #fbbf24;
-            --accent-green: #10b981;
+            /* Teal & Aqua Accent Palette */
+            --teal-300: #5eead4;
+            --teal-400: #2dd4bf;
+            --teal-500: #14b8a6;
+            --teal-600: #0d9488;
+            
+            --aqua-300: #67e8f9;
+            --aqua-400: #22d3ee;
+            --aqua-500: #06b6d4;
+            --aqua-600: #0891b2;
 
-            --grad-primary: linear-gradient(135deg, #f43f5e 0%, #ec4899 45%, #a855f7 100%);
-            --grad-primary-hover: linear-gradient(135deg, #fb7185 0%, #f43f5e 45%, #c084fc 100%);
-            --grad-text: linear-gradient(135deg, #ffffff 10%, #e9d5ff 55%, #f472b6 100%);
-            --grad-hero: linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(220,195,255,0.9) 60%, rgba(244,114,182,0.85) 100%);
-            --grad-badge: linear-gradient(135deg, rgba(168, 85, 247, 0.18) 0%, rgba(236, 72, 153, 0.18) 100%);
+            --blue-200: #bae6fd;
+            --blue-300: #7dd3fc;
+            --blue-400: #38bdf8;
+            --blue-500: #0ea5e9;
 
-            --shadow-card: 0 35px 90px -20px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15);
-            --shadow-btn: 0 12px 32px rgba(236, 72, 153, 0.45);
-            --shadow-glow: 0 0 40px rgba(168, 85, 247, 0.25);
+            /* Gradients */
+            --grad-primary: linear-gradient(135deg, #0d9488 0%, #06b6d4 50%, #0284c7 100%);
+            --grad-primary-hover: linear-gradient(135deg, #14b8a6 0%, #22d3ee 50%, #38bdf8 100%);
+            --grad-text: linear-gradient(135deg, #ffffff 15%, #bae6fd 60%, #2dd4bf 100%);
+            --grad-hero: linear-gradient(180deg, #ffffff 0%, #e0f2fe 55%, #67e8f9 100%);
+            --grad-badge: linear-gradient(135deg, rgba(6, 182, 212, 0.18) 0%, rgba(20, 184, 166, 0.18) 100%);
+            --grad-steam: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(56, 189, 248, 0.03) 40%, rgba(20, 184, 166, 0.05) 75%, rgba(255, 255, 255, 0.02) 100%);
 
-            --radius-card: 28px;
+            /* Elevation & Realistic Glass Shadows */
+            --shadow-card: 0 45px 120px -15px rgba(0, 0, 0, 0.96), 
+                           0 20px 45px -5px rgba(0, 0, 0, 0.8), 
+                           inset 1.5px 1.5px 0px 0px rgba(255, 255, 255, 0.55), 
+                           inset -1.5px -1.5px 0px 0px rgba(255, 255, 255, 0.08),
+                           inset 0 0 35px 0px rgba(255, 255, 255, 0.02);
+            --shadow-btn: 0 14px 35px rgba(6, 182, 212, 0.4);
+            --shadow-btn-hover: 0 18px 45px rgba(34, 211, 238, 0.6);
+            --shadow-pill: inset 0 1px 1px rgba(255, 255, 255, 0.25), 0 4px 16px rgba(0, 0, 0, 0.5);
+
+            /* Radii */
+            --radius-main-card: 32px;
+            --radius-inner-card: 22px;
             --radius-btn: 16px;
             --radius-pill: 9999px;
             --radius-input: 16px;
         }
 
+        /* ── Reset & Global Rules ────────────────────────────────────── */
         *, *::before, *::after {
             margin: 0;
             padding: 0;
@@ -59,12 +91,13 @@
 
         html {
             scroll-behavior: smooth;
+            color-scheme: dark;
         }
 
         body {
             min-height: 100vh;
             background-color: var(--bg-canvas);
-            color: var(--text-main);
+            color: var(--text-pure);
             font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
             -webkit-font-smoothing: antialiased;
             overflow-x: hidden;
@@ -74,58 +107,17 @@
             align-items: center;
         }
 
-        /* ── 3D & Ambient Background Scene ───────────────────────────── */
-        .bg-scene-container {
+        /* ── Ambient Background & 3D Glass Orbs Canvases (True 3D WebGL) ── */
+        .ambient-canvas-wrapper {
             position: fixed;
             inset: 0;
             pointer-events: none;
             z-index: 0;
             overflow: hidden;
+            background: radial-gradient(circle at 50% 36%, #050812 0%, #010204 65%, #000000 100%);
         }
 
-        .bg-scene-image {
-            position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            opacity: 0.38;
-            filter: saturate(1.15) contrast(1.1);
-        }
-
-        .ambient-radial-1 {
-            position: absolute;
-            top: -180px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 1000px;
-            height: 650px;
-            background: radial-gradient(ellipse, rgba(168, 85, 247, 0.22) 0%, rgba(236, 72, 153, 0.12) 40%, transparent 70%);
-            filter: blur(60px);
-        }
-
-        .ambient-radial-2 {
-            position: absolute;
-            bottom: 5%;
-            right: -100px;
-            width: 700px;
-            height: 600px;
-            background: radial-gradient(circle, rgba(6, 182, 212, 0.14) 0%, rgba(139, 92, 246, 0.12) 50%, transparent 70%);
-            filter: blur(80px);
-        }
-
-        .ambient-radial-3 {
-            position: absolute;
-            top: 40%;
-            left: -150px;
-            width: 600px;
-            height: 500px;
-            background: radial-gradient(circle, rgba(236, 72, 153, 0.15) 0%, transparent 70%);
-            filter: blur(70px);
-        }
-
-        /* Interactive 3D Matter Canvas */
-        #matter3dCanvas {
+        #bgSpheresCanvas {
             position: absolute;
             inset: 0;
             width: 100%;
@@ -134,7 +126,16 @@
             z-index: 1;
         }
 
-        /* ── Top Navigation Bar ──────────────────────────────────────── */
+        #fgSpheresCanvas {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 3;
+        }
+
+        /* ── Global Header Navigation Bar ────────────────────────────── */
         .top-navbar {
             width: 100%;
             max-width: 1180px;
@@ -149,68 +150,67 @@
         .brand-logo-wrap {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 13px;
             text-decoration: none;
             color: #fff;
             cursor: pointer;
+            transition: transform 0.25s ease;
+        }
+
+        .brand-logo-wrap:hover {
+            transform: translateY(-1px);
         }
 
         .brand-icon-emblem {
-            width: 42px;
-            height: 42px;
+            width: 44px;
+            height: 44px;
             border-radius: 14px;
-            background: linear-gradient(135deg, rgba(244, 63, 94, 0.25) 0%, rgba(168, 85, 247, 0.3) 100%);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            backdrop-filter: blur(10px);
+            background: linear-gradient(135deg, rgba(34, 211, 238, 0.2) 0%, rgba(20, 184, 166, 0.3) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 8px 24px rgba(236, 72, 153, 0.25);
-            transition: transform 0.25s, box-shadow 0.25s;
+            box-shadow: 0 8px 24px rgba(6, 182, 212, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         .brand-logo-wrap:hover .brand-icon-emblem {
-            transform: scale(1.05) rotate(5deg);
-            box-shadow: 0 10px 30px rgba(236, 72, 153, 0.4);
+            transform: scale(1.06) rotate(4deg);
+            box-shadow: 0 12px 32px rgba(6, 182, 212, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.6);
+            border-color: rgba(255, 255, 255, 0.45);
         }
 
         .brand-icon-emblem svg {
-            width: 22px;
-            height: 22px;
-            color: #ff75c3;
+            width: 24px;
+            height: 24px;
+            color: #67e8f9;
+        }
+
+        .brand-text-block {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.1;
         }
 
         .brand-text {
             font-family: 'Outfit', sans-serif;
-            font-size: 21px;
+            font-size: 22px;
             font-weight: 800;
-            letter-spacing: -0.02em;
+            letter-spacing: -0.025em;
             background: var(--grad-text);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
-        .nav-links {
-            display: flex;
-            align-items: center;
-            gap: 28px;
-            list-style: none;
-        }
-
-        @media (max-width: 820px) {
-            .nav-links { display: none; }
-        }
-
-        .nav-link {
-            color: var(--text-sub);
-            font-size: 13.5px;
-            font-weight: 600;
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-        .nav-link:hover {
-            color: #fff;
+        .brand-tagline-mini {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--teal-300);
+            opacity: 0.85;
         }
 
         .nav-right-actions {
@@ -219,26 +219,52 @@
             gap: 12px;
         }
 
+        .btn-nav-glass {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #e0f2fe;
+            padding: 7px 14px;
+            border-radius: var(--radius-pill);
+            font-size: 12.5px;
+            font-weight: 700;
+            cursor: pointer;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-nav-glass:hover {
+            background: rgba(34, 211, 238, 0.15);
+            border-color: rgba(34, 211, 238, 0.4);
+            color: #fff;
+            transform: translateY(-1px);
+        }
+
         .status-pill {
             display: flex;
             align-items: center;
             gap: 8px;
-            background: rgba(16, 185, 129, 0.1);
-            border: 1px solid rgba(16, 185, 129, 0.3);
-            color: #6ee7b7;
+            background: rgba(20, 184, 166, 0.12);
+            border: 1px solid rgba(45, 212, 191, 0.35);
+            color: #5eead4;
             padding: 6px 14px;
             border-radius: var(--radius-pill);
-            font-size: 12px;
+            font-size: 11.5px;
             font-weight: 700;
-            backdrop-filter: blur(8px);
+            letter-spacing: 0.02em;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
         }
 
         .status-dot {
             width: 7px;
             height: 7px;
             border-radius: 50%;
-            background: #10b981;
-            box-shadow: 0 0 10px #10b981;
+            background: #2dd4bf;
+            box-shadow: 0 0 10px #2dd4bf;
             animation: pulse-dot 2s infinite ease-in-out;
         }
 
@@ -247,11 +273,11 @@
             50% { opacity: 0.4; transform: scale(0.85); }
         }
 
-        /* ── Main App Content ────────────────────────────────────────── */
+        /* ── Main App Layout Container ───────────────────────────────── */
         .main-container {
             width: 100%;
-            max-width: 880px;
-            padding: 40px 20px 80px;
+            max-width: 900px;
+            padding: 36px 20px 80px;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -260,14 +286,14 @@
             z-index: 2;
         }
 
-        /* ── Hero Section (Onion AI Style + 3D Modern) ──────────────── */
+        /* ── Hero Headline Section ───────────────────────────────────── */
         .hero-section {
             text-align: center;
             display: flex;
             flex-direction: column;
             align-items: center;
             gap: 16px;
-            margin-top: 10px;
+            margin-top: 6px;
         }
 
         .hero-badge {
@@ -275,66 +301,98 @@
             align-items: center;
             gap: 8px;
             background: var(--grad-badge);
-            border: 1px solid rgba(236, 72, 153, 0.3);
-            color: #f472b6;
-            padding: 6px 16px;
+            border: 1px solid rgba(34, 211, 238, 0.35);
+            color: #67e8f9;
+            padding: 6px 18px;
             border-radius: var(--radius-pill);
             font-size: 12px;
             font-weight: 800;
-            letter-spacing: 0.04em;
+            letter-spacing: 0.06em;
             text-transform: uppercase;
-            box-shadow: 0 4px 20px rgba(236, 72, 153, 0.15);
-            backdrop-filter: blur(12px);
+            box-shadow: 0 4px 20px rgba(6, 182, 212, 0.18), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
         }
 
         .hero-title {
             font-family: 'Outfit', sans-serif;
             font-size: clamp(34px, 5.5vw, 56px);
             font-weight: 900;
-            letter-spacing: -0.03em;
+            letter-spacing: -0.035em;
             line-height: 1.08;
             background: var(--grad-hero);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            max-width: 780px;
+            max-width: 820px;
         }
 
         .hero-subtitle {
-            font-size: clamp(14px, 2vw, 16px);
+            font-size: clamp(14px, 2vw, 16.5px);
             color: var(--text-sub);
-            max-width: 580px;
+            max-width: 620px;
             line-height: 1.6;
             font-weight: 500;
         }
 
-        /* ── Downloader Glass Deck (Main Card) ───────────────────────── */
-        .downloader-deck {
+        /* ── Master Glassmorphic Window (Real-Life Glass Depth & Specular Rim) ────── */
+        .glass-window-frame {
             width: 100%;
-            background: var(--bg-card);
-            border: 1px solid var(--border-card);
-            border-radius: var(--radius-card);
-            padding: 34px;
-            box-shadow: var(--shadow-card);
-            backdrop-filter: blur(28px);
-            -webkit-backdrop-filter: blur(28px);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(18, 25, 40, 0.44) 30%, rgba(7, 11, 20, 0.74) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            border-top: 1px solid rgba(255, 255, 255, 0.65);
+            border-left: 1px solid rgba(255, 255, 255, 0.5);
+            border-right: 1px solid rgba(255, 255, 255, 0.2);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: var(--radius-main-card);
+            padding: 34px 38px 30px;
+            box-shadow: 
+                0 45px 120px -15px rgba(0, 0, 0, 0.98),
+                0 20px 45px -5px rgba(0, 0, 0, 0.8),
+                inset 1.5px 1.5px 0px 0px rgba(255, 255, 255, 0.55),
+                inset -1.5px -1.5px 0px 0px rgba(255, 255, 255, 0.08),
+                inset 0 0 40px 0px rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(52px) saturate(200%) contrast(108%);
+            -webkit-backdrop-filter: blur(52px) saturate(200%) contrast(108%);
             display: flex;
             flex-direction: column;
-            gap: 24px;
+            gap: 22px;
             position: relative;
-            transition: border-color 0.3s, box-shadow 0.3s;
+            transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+            overflow: hidden;
+            z-index: 2;
         }
 
-        .downloader-deck::before {
+        .glass-window-frame::before {
             content: '';
             position: absolute;
-            top: 0;
-            left: 15%;
-            right: 15%;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(244, 114, 182, 0.6), rgba(192, 132, 252, 0.6), transparent);
+            inset: 0;
+            border-radius: inherit;
+            background: radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.14) 0%, transparent 55%),
+                        linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, transparent 40%);
+            pointer-events: none;
+            z-index: 0;
         }
 
-        /* ── Alert & Notification Banner ─────────────────────────────── */
+        .glass-window-frame > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .glass-window-frame:hover {
+            border-top-color: rgba(255, 255, 255, 0.85);
+            border-left-color: rgba(255, 255, 255, 0.65);
+            box-shadow: 
+                0 55px 140px -15px rgba(0, 0, 0, 0.98),
+                0 0 60px rgba(6, 182, 212, 0.14),
+                inset 1.5px 1.5px 0px 0px rgba(255, 255, 255, 0.75),
+                inset -1.5px -1.5px 0px 0px rgba(255, 255, 255, 0.12),
+                inset 0 0 45px 0px rgba(255, 255, 255, 0.03);
+            transform: translateY(-2px);
+        }
+
+
+
+        /* Notification / Error Alert Banner */
         .alert-banner {
             display: none;
             align-items: center;
@@ -354,29 +412,29 @@
 
         .alert-banner.show { display: flex; }
 
-        .alert-banner.err {
-            background: rgba(244, 63, 94, 0.15);
-            border: 1px solid rgba(244, 63, 94, 0.35);
-            color: #fda4af;
-        }
-
         .alert-banner.warn {
-            background: rgba(251, 191, 36, 0.15);
-            border: 1px solid rgba(251, 191, 36, 0.35);
+            background: rgba(234, 179, 8, 0.12);
+            border: 1px solid rgba(234, 179, 8, 0.35);
             color: #fde047;
         }
 
+        .alert-banner.err {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            color: #fca5a5;
+        }
+
         .alert-banner.ok {
-            background: rgba(16, 185, 129, 0.15);
-            border: 1px solid rgba(16, 185, 129, 0.35);
-            color: #6ee7b7;
+            background: rgba(20, 184, 166, 0.15);
+            border: 1px solid rgba(20, 184, 166, 0.35);
+            color: #5eead4;
         }
 
         .alert-side {
             display: flex;
             align-items: center;
             gap: 10px;
-            line-height: 1.4;
+            min-width: 0;
         }
 
         .alert-close {
@@ -384,14 +442,17 @@
             border: none;
             color: inherit;
             cursor: pointer;
-            font-size: 14px;
             opacity: 0.75;
+            font-size: 16px;
+            line-height: 1;
             padding: 4px;
+            border-radius: 4px;
+            transition: opacity 0.2s;
         }
 
         .alert-close:hover { opacity: 1; }
 
-        /* ── URL Input Capsule ───────────────────────────────────────── */
+        /* ── URL Input Capsule Deck ──────────────────────────────────── */
         .url-input-deck {
             display: flex;
             flex-direction: column;
@@ -401,112 +462,112 @@
         .url-input-bar {
             display: flex;
             align-items: center;
-            gap: 12px;
-            background: var(--bg-input);
-            border: 1.5px solid var(--border-subtle);
+            background: var(--glass-input-bg);
+            border: 1.5px solid rgba(255, 255, 255, 0.12);
             border-radius: var(--radius-input);
-            padding: 8px 10px 8px 18px;
+            padding: 7px 12px 7px 14px;
+            gap: 12px;
             transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-            position: relative;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
         }
 
         .url-input-bar:focus-within {
-            border-color: var(--border-focus);
-            box-shadow: 0 0 0 4px rgba(192, 132, 252, 0.2), 0 10px 30px rgba(0, 0, 0, 0.5);
-            background: rgba(14, 10, 30, 0.95);
+            border-color: var(--glass-border-focus);
+            box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.2), inset 0 1px 2px rgba(0, 0, 0, 0.5), 0 0 25px rgba(6, 182, 212, 0.25);
+            background: rgba(5, 11, 22, 0.88);
         }
 
         .platform-badge {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 7px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-sub);
+            padding: 7px 13px;
+            border-radius: 10px;
             font-size: 12px;
             font-weight: 700;
-            color: var(--text-dim);
-            background: var(--bg-pill);
-            padding: 6px 12px;
-            border-radius: 10px;
             white-space: nowrap;
-            border: 1px solid var(--border-subtle);
-            transition: all 0.25s;
+            user-select: none;
+            transition: all 0.2s ease;
         }
 
         .platform-badge.detected {
-            color: #f472b6;
-            background: rgba(236, 72, 153, 0.15);
-            border-color: rgba(236, 72, 153, 0.35);
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.2) 0%, rgba(20, 184, 166, 0.25) 100%);
+            border-color: rgba(34, 211, 238, 0.4);
+            color: #67e8f9;
+            box-shadow: 0 0 16px rgba(6, 182, 212, 0.3);
         }
 
         .url-input-field {
             flex: 1;
+            min-width: 0;
             background: transparent;
             border: none;
             outline: none;
             color: #ffffff;
-            font-size: 15px;
             font-family: inherit;
-            min-width: 0;
-            font-weight: 500;
+            font-size: 15px;
+            font-weight: 600;
         }
 
         .url-input-field::placeholder {
-            color: var(--text-dim);
+            color: #64748b;
             font-weight: 400;
         }
 
         .url-tools {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
         }
 
         .btn-clear-input {
             display: none;
-            background: transparent;
-            border: none;
-            color: var(--text-dim);
-            cursor: pointer;
-            padding: 6px;
-            border-radius: 8px;
             align-items: center;
             justify-content: center;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: #94a3b8;
+            font-size: 12px;
+            cursor: pointer;
             transition: all 0.2s;
         }
 
-        .btn-clear-input:hover {
-            color: #fff;
-            background: rgba(255, 255, 255, 0.1);
-        }
-
         .btn-clear-input.show { display: flex; }
+        .btn-clear-input:hover { background: rgba(255, 255, 255, 0.2); color: #fff; }
 
         .btn-paste-clip {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #e0f2fe;
+            padding: 8px 14px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
             display: flex;
             align-items: center;
-            gap: 7px;
-            background: var(--bg-pill);
-            border: 1px solid var(--border-subtle);
-            color: var(--text-main);
-            font-size: 13px;
-            font-weight: 700;
-            padding: 9px 16px;
-            border-radius: 12px;
-            cursor: pointer;
-            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-            white-space: nowrap;
+            gap: 6px;
+            transition: all 0.2s ease;
         }
 
         .btn-paste-clip:hover {
-            background: var(--bg-pill-active);
-            border-color: rgba(255, 255, 255, 0.25);
+            background: rgba(34, 211, 238, 0.2);
+            border-color: rgba(34, 211, 238, 0.45);
+            color: #fff;
             transform: translateY(-1px);
         }
 
-        /* ── Controls Deck (Format & Resolution Selector) ────────────── */
+        /* ── Controls Deck (Format Segmented Pill & Quality Selector) ── */
         .controls-grid {
             display: grid;
             grid-template-columns: 1fr 1.35fr;
-            gap: 18px;
+            gap: 16px;
         }
 
         @media (max-width: 640px) {
@@ -516,11 +577,11 @@
         .control-block {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 7px;
         }
 
         .control-label {
-            font-size: 12px;
+            font-size: 11.5px;
             font-weight: 800;
             text-transform: uppercase;
             letter-spacing: 0.06em;
@@ -533,16 +594,17 @@
         .format-segmented-pill {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            background: var(--bg-input);
-            border: 1px solid var(--border-subtle);
+            background: var(--glass-input-bg);
+            border: 1px solid var(--glass-border);
             border-radius: var(--radius-btn);
             padding: 5px;
             gap: 5px;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35);
         }
 
         .format-seg-btn {
             background: transparent;
-            border: none;
+            border: 1px solid transparent;
             color: var(--text-sub);
             padding: 11px 14px;
             border-radius: 12px;
@@ -561,32 +623,35 @@
         }
 
         .format-seg-btn.active {
-            background: linear-gradient(135deg, rgba(236, 72, 153, 0.25) 0%, rgba(168, 85, 247, 0.35) 100%);
-            color: #fff;
-            border: 1px solid rgba(244, 114, 182, 0.4);
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.28) 0%, rgba(20, 184, 166, 0.35) 100%);
+            color: #ffffff;
+            border: 1px solid rgba(103, 232, 249, 0.45);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+            text-shadow: 0 0 12px rgba(34, 211, 238, 0.4);
         }
 
         .custom-select-deck {
             position: relative;
-            background: var(--bg-input);
-            border: 1px solid var(--border-subtle);
+            background: var(--glass-input-bg);
+            border: 1px solid var(--glass-border);
             border-radius: var(--radius-btn);
             display: flex;
             align-items: center;
-            transition: border-color 0.2s;
+            transition: all 0.2s;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35);
         }
 
         .custom-select-deck:focus-within {
-            border-color: var(--border-focus);
+            border-color: var(--glass-border-focus);
+            box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.2);
         }
 
         .custom-select-deck select {
             width: 100%;
             background: transparent;
             border: none;
-            color: #fff;
-            font-size: 14px;
+            color: #ffffff;
+            font-size: 13.5px;
             font-weight: 600;
             padding: 13px 40px 13px 16px;
             appearance: none;
@@ -596,9 +661,9 @@
         }
 
         .custom-select-deck select option {
-            background: #110d24;
+            background: #070e1c;
             color: #fff;
-            padding: 10px;
+            padding: 12px;
         }
 
         .select-chevron-icon {
@@ -610,52 +675,84 @@
             align-items: center;
         }
 
-        /* ── Extra Stream Options (Cover Art & Subtitles) ─────────────── */
+        /* ── Extra Stream Options Deck ───────────────────────────────── */
         .stream-options-row {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 12px 18px;
-            background: rgba(10, 7, 22, 0.55);
-            border: 1px solid var(--border-subtle);
+            padding: 10px 18px;
+            background: rgba(4, 9, 18, 0.45);
+            border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 14px;
             flex-wrap: wrap;
-            gap: 12px;
+            gap: 14px;
         }
 
         .option-toggle {
-            display: flex;
+            display: inline-flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
             font-size: 13px;
             font-weight: 600;
             color: var(--text-sub);
             cursor: pointer;
             user-select: none;
-            transition: color 0.2s;
+            transition: color 0.2s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         .option-toggle:hover {
-            color: #fff;
+            color: #ffffff;
         }
 
         .option-toggle input {
-            accent-color: var(--accent-pink);
-            width: 16px;
-            height: 16px;
+            appearance: none;
+            -webkit-appearance: none;
+            width: 36px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 99px;
+            position: relative;
             cursor: pointer;
+            outline: none;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            flex-shrink: 0;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
         }
 
-        /* ── Primary Action Button (The Glowing Neon Hero Button) ────── */
+        .option-toggle input::before {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+            transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.25s ease;
+        }
+
+        .option-toggle input:checked {
+            background: linear-gradient(135deg, #0d9488 0%, #06b6d4 100%);
+            border-color: rgba(34, 211, 238, 0.5);
+            box-shadow: 0 0 14px rgba(6, 182, 212, 0.35);
+        }
+
+        .option-toggle input:checked::before {
+            transform: translateX(16px);
+        }
+
+        /* ── Primary Hero Action Button (The Luminous Reaper Button) ─── */
         .btn-extract-media {
             width: 100%;
             background: var(--grad-primary);
             color: #ffffff;
-            border: none;
+            border: 1px solid rgba(255, 255, 255, 0.25);
             border-radius: var(--radius-btn);
             padding: 18px 28px;
             font-family: 'Outfit', sans-serif;
-            font-size: 17.5px;
+            font-size: 18px;
             font-weight: 800;
             letter-spacing: -0.01em;
             cursor: pointer;
@@ -663,7 +760,7 @@
             align-items: center;
             justify-content: center;
             gap: 12px;
-            box-shadow: var(--shadow-btn);
+            box-shadow: var(--shadow-btn), inset 0 1px 1px rgba(255, 255, 255, 0.5);
             transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
             position: relative;
             overflow: hidden;
@@ -673,9 +770,9 @@
             content: '';
             position: absolute;
             inset: 0;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
             transform: translateX(-100%);
-            transition: transform 0.6s ease;
+            transition: transform 0.65s ease;
         }
 
         .btn-extract-media:hover::after {
@@ -685,7 +782,8 @@
         .btn-extract-media:hover {
             transform: translateY(-2px);
             background: var(--grad-primary-hover);
-            box-shadow: 0 16px 40px rgba(236, 72, 153, 0.6);
+            box-shadow: var(--shadow-btn-hover), inset 0 1px 1px rgba(255, 255, 255, 0.7);
+            border-color: rgba(255, 255, 255, 0.45);
         }
 
         .btn-extract-media:active {
@@ -702,25 +800,27 @@
         /* ── Live Media Preview Deck ─────────────────────────────────── */
         .media-preview-deck {
             display: none;
-            background: rgba(10, 7, 22, 0.75);
-            border: 1px solid var(--border-subtle);
+            background: rgba(4, 9, 18, 0.75);
+            border: 1px solid rgba(34, 211, 238, 0.25);
             border-radius: 18px;
             padding: 14px 18px;
             gap: 16px;
             align-items: center;
             animation: slide-banner 0.25s ease-out;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
         }
 
         .media-preview-deck.show { display: flex; }
 
         .preview-thumb-box {
-            width: 96px;
-            height: 58px;
+            width: 104px;
+            height: 62px;
             border-radius: 10px;
             overflow: hidden;
             background: #000;
             flex-shrink: 0;
             border: 1px solid rgba(255, 255, 255, 0.15);
+            position: relative;
         }
 
         .preview-thumb-box img {
@@ -747,26 +847,26 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            margin-top: 4px;
+            margin-top: 5px;
             font-size: 12px;
             color: var(--text-dim);
         }
 
         .preview-platform-tag {
-            background: rgba(236, 72, 153, 0.15);
-            color: #f472b6;
+            background: rgba(6, 182, 212, 0.15);
+            color: #67e8f9;
             font-weight: 800;
             padding: 2px 8px;
             border-radius: 6px;
             font-size: 10.5px;
-            border: 1px solid rgba(236, 72, 153, 0.25);
+            border: 1px solid rgba(6, 182, 212, 0.3);
         }
 
         .btn-quick-art {
-            background: var(--bg-pill);
-            border: 1px solid var(--border-subtle);
-            color: var(--text-sub);
-            padding: 6px 12px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #e0f2fe;
+            padding: 7px 12px;
             border-radius: 8px;
             font-size: 12px;
             font-weight: 700;
@@ -775,11 +875,13 @@
             display: flex;
             align-items: center;
             gap: 6px;
+            white-space: nowrap;
         }
 
         .btn-quick-art:hover {
             color: #fff;
-            background: var(--bg-pill-active);
+            background: rgba(34, 211, 238, 0.2);
+            border-color: rgba(34, 211, 238, 0.4);
         }
 
         /* ── Real-Time Progress Engine ───────────────────────────────── */
@@ -787,11 +889,12 @@
             display: none;
             flex-direction: column;
             gap: 10px;
-            background: rgba(10, 7, 22, 0.85);
-            border: 1px solid var(--border-subtle);
+            background: rgba(4, 9, 18, 0.85);
+            border: 1px solid rgba(34, 211, 238, 0.3);
             border-radius: 16px;
             padding: 16px 20px;
             animation: slide-banner 0.25s ease-out;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
         }
 
         .progress-engine-deck.show { display: flex; }
@@ -802,7 +905,7 @@
             justify-content: space-between;
             font-size: 13px;
             font-weight: 700;
-            color: var(--text-main);
+            color: var(--text-heading);
         }
 
         .progress-track-bg {
@@ -820,7 +923,7 @@
             background: var(--grad-primary);
             border-radius: 99px;
             transition: width 0.3s ease;
-            box-shadow: 0 0 16px rgba(236, 72, 153, 0.8);
+            box-shadow: 0 0 16px rgba(34, 211, 238, 0.85);
         }
 
         .progress-fill-bar.pulse {
@@ -829,107 +932,61 @@
         }
 
         @keyframes pulse-progress {
-            0%, 100% { opacity: 0.4; }
+            0%, 100% { opacity: 0.45; }
             50% { opacity: 1; }
         }
 
-        /* ── Supported Platforms Ecosystem Ribbon (Onion AI Style) ───── */
-        .ecosystem-section {
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 16px;
-            margin-top: 10px;
-        }
-
-        .ecosystem-heading {
-            font-size: 11.5px;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: var(--text-dim);
-        }
-
+        /* ── Supported Platforms Ecosystem Ribbon ────────────────────── */
         .platforms-chip-row {
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 10px;
             flex-wrap: wrap;
+            padding: 4px 0;
+            width: 100%;
         }
 
         .platform-chip {
-            background: rgba(255, 255, 255, 0.035);
-            border: 1px solid rgba(255, 255, 255, 0.07);
+            background: rgba(10, 20, 36, 0.45);
+            border: 1px solid rgba(255, 255, 255, 0.08);
             color: var(--text-sub);
             font-size: 12.5px;
-            font-weight: 700;
-            padding: 8px 16px;
+            font-weight: 600;
+            padding: 8px 18px;
             border-radius: var(--radius-pill);
-            display: flex;
+            display: inline-flex;
             align-items: center;
             gap: 8px;
-            backdrop-filter: blur(10px);
-            transition: all 0.2s;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            user-select: none;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
         }
 
         .platform-chip:hover {
-            color: #fff;
-            background: rgba(255, 255, 255, 0.08);
-            border-color: rgba(255, 255, 255, 0.18);
-            transform: translateY(-2px);
-        }
-
-        /* ── Modular Architecture Grid (Onion AI Feature Cards) ──────── */
-        .features-grid {
-            width: 100%;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 18px;
-            margin-top: 20px;
-        }
-
-        .feature-card {
-            background: rgba(14, 10, 28, 0.65);
-            border: 1px solid var(--border-subtle);
-            border-radius: 20px;
-            padding: 24px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            backdrop-filter: blur(16px);
-            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .feature-card:hover {
-            border-color: rgba(236, 72, 153, 0.3);
-            background: rgba(20, 14, 38, 0.75);
-            transform: translateY(-3px);
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
-        }
-
-        .feature-num {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 12px;
-            font-weight: 700;
-            color: var(--accent-pink);
-            letter-spacing: 0.05em;
-        }
-
-        .feature-title {
-            font-family: 'Outfit', sans-serif;
-            font-size: 16.5px;
-            font-weight: 800;
             color: #ffffff;
+            background: rgba(34, 211, 238, 0.12);
+            border-color: rgba(34, 211, 238, 0.4);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4), 0 0 18px rgba(34, 211, 238, 0.18);
         }
 
-        .feature-desc {
-            font-size: 13px;
-            color: var(--text-sub);
-            line-height: 1.5;
+        /* ── Sleek Minimalist Glass Footer ───────────────────────────── */
+        .app-footer {
+            margin-top: 10px;
+            padding: 16px 20px;
+            color: var(--text-dim);
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 0.02em;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            width: 100%;
         }
 
         /* ── Recent Downloads Drawer ─────────────────────────────────── */
@@ -977,21 +1034,22 @@
         }
 
         .recent-item {
-            background: rgba(14, 10, 28, 0.65);
-            border: 1px solid var(--border-subtle);
+            background: var(--glass-subtle-bg);
+            border: 1px solid var(--glass-border);
             border-radius: 16px;
             padding: 12px 18px;
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 14px;
-            backdrop-filter: blur(12px);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
             transition: all 0.2s;
         }
 
         .recent-item:hover {
-            background: rgba(22, 16, 42, 0.8);
-            border-color: rgba(255, 255, 255, 0.15);
+            background: rgba(16, 32, 54, 0.65);
+            border-color: rgba(34, 211, 238, 0.3);
         }
 
         .recent-item-title {
@@ -1001,7 +1059,7 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            max-width: 460px;
+            max-width: 480px;
         }
 
         .recent-item-meta {
@@ -1011,9 +1069,9 @@
         }
 
         .btn-re-download {
-            background: var(--bg-pill);
-            border: 1px solid var(--border-subtle);
-            color: var(--text-sub);
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #e0f2fe;
             padding: 6px 12px;
             border-radius: 8px;
             font-size: 12px;
@@ -1025,7 +1083,98 @@
 
         .btn-re-download:hover {
             color: #fff;
-            background: var(--bg-pill-active);
+            background: rgba(34, 211, 238, 0.2);
+            border-color: rgba(34, 211, 238, 0.4);
+        }
+
+        /* ── Modal Dialogs (Frosted Glass Windows) ───────────────────── */
+        .modal-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal-backdrop.show { display: flex; }
+
+        .modal-window {
+            width: 100%;
+            max-width: 520px;
+            background: rgba(8, 16, 30, 0.88);
+            background-image: var(--grad-steam);
+            border: 1px solid var(--glass-border-bright);
+            border-radius: 24px;
+            padding: 28px;
+            box-shadow: 0 30px 90px rgba(0, 0, 0, 0.9), 0 0 50px rgba(6, 182, 212, 0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            position: relative;
+            animation: slide-banner 0.25s ease-out;
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 20px;
+            font-weight: 800;
+            color: #ffffff;
+        }
+
+        .modal-close {
+            background: transparent;
+            border: none;
+            color: var(--text-sub);
+            font-size: 20px;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .modal-close:hover { color: #fff; }
+
+        .modal-body {
+            font-size: 13.5px;
+            color: var(--text-sub);
+            line-height: 1.6;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .modal-input {
+            width: 100%;
+            background: var(--glass-input-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 12px 14px;
+            color: #fff;
+            font-family: inherit;
+            font-size: 13.5px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .modal-input:focus {
+            border-color: var(--glass-border-focus);
+        }
+
+        .modal-footer {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 6px;
         }
 
         /* ── Spinner ─────────────────────────────────────────────────── */
@@ -1043,35 +1192,40 @@
 </head>
 <body>
 
-<!-- 3D & Ambient Background Layers -->
-<div class="bg-scene-container">
-    <img class="bg-scene-image" src="/bg-3d-scene.jpg" alt="3D Modern Scene" onerror="this.style.display='none'">
-    <div class="ambient-radial-1"></div>
-    <div class="ambient-radial-2"></div>
-    <div class="ambient-radial-3"></div>
-    <canvas id="matter3dCanvas"></canvas>
+<!-- Ambient Background & 3D Obsidian Canvas (Behind Glass Card) -->
+<div class="ambient-canvas-wrapper">
+    <canvas id="bgSpheresCanvas"></canvas>
 </div>
 
-<!-- Top Navigation Bar (Matching Onion AI & 3D Purple Header) -->
+<!-- Foreground 3D Canvas (Overlapping In Front Of Glass Card) -->
+<canvas id="fgSpheresCanvas"></canvas>
+
+<!-- Global Top Navigation Bar -->
 <header class="top-navbar">
-    <a class="brand-logo-wrap" href="#top">
+    <a class="brand-logo-wrap" href="#">
         <div class="brand-icon-emblem">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
-                <polyline points="2 17 12 22 22 17"></polyline>
-                <polyline points="2 12 12 17 22 12"></polyline>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                <circle cx="12" cy="12" r="9" stroke-width="1.5" stroke-dasharray="2 3"></circle>
             </svg>
         </div>
-        <div class="brand-text">StreamGrab</div>
+        <div class="brand-text-block">
+            <div class="brand-text">AuvidReaper</div>
+            <div class="brand-tagline-mini">AUDIO + VIDEO HARVESTER</div>
+        </div>
     </a>
 
-    <ul class="nav-links">
-        <li><a class="nav-link" href="#downloader">Downloader</a></li>
-        <li><a class="nav-link" href="#platforms">Supported Platforms</a></li>
-        <li><a class="nav-link" href="#features">Architecture</a></li>
-    </ul>
-
     <div class="nav-right-actions">
+        <button class="btn-nav-glass" id="openHelperNavBtn" type="button" title="Desktop Local Helper">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            <span>Desktop Helper</span>
+        </button>
+
+        <button class="btn-nav-glass" id="openProxyNavBtn" type="button" title="Configure Outbound Proxy">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            <span>Proxy</span>
+        </button>
+
         <div class="status-pill" id="engineStatusBadge">
             <span class="status-dot"></span>
             <span id="engineStatusLabel">Engine Online</span>
@@ -1079,23 +1233,23 @@
     </div>
 </header>
 
-<!-- Main Container -->
+<!-- Main App Container -->
 <main class="main-container" id="top">
 
-    <!-- Hero Section (Onion AI Style + 3D Gradient) -->
+    <!-- Hero Headline Section -->
     <section class="hero-section">
         <div class="hero-badge">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-            <span>Universal Media Extraction</span>
+            <span class="hero-badge-spark">✦</span>
+            <span>Studio-Grade Stream Harvester</span>
         </div>
-        <h1 class="hero-title">Download Video &amp; Audio Stream Losslessly.</h1>
-        <p class="hero-subtitle">High-throughput multiplexing and studio-master MP3 extraction across YouTube, TikTok, Instagram Reels, Twitter/X, and 1,000+ media protocols.</p>
+        <h1 class="hero-title">Universal Audio &amp; Video Reaper.</h1>
+        <p class="hero-subtitle">Studio-master 320kbps MP3 extraction and 4K Ultra HD multiplexing across YouTube, TikTok, Instagram Reels, Twitter/X, and 1,000+ protocols.</p>
     </section>
 
-    <!-- Downloader Glass Deck (Main Card) -->
-    <div class="downloader-deck" id="downloader">
+    <!-- Master Glassmorphic Card -->
+    <div class="glass-window-frame" id="downloader">
 
-        <!-- Notification / Error Banner -->
+        <!-- Notification / Error Alert Banner -->
         <div class="alert-banner" id="alertBanner">
             <div class="alert-side">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -1112,7 +1266,7 @@
                     <span id="platformName">Stream Link</span>
                 </div>
 
-                <input class="url-input-field" id="videoUrl" type="url" placeholder="Paste link here (YouTube, TikTok, Instagram Reels, Twitter, SoundCloud...)" autocomplete="off" spellcheck="false">
+                <input class="url-input-field" id="videoUrl" type="url" placeholder="Paste link here (YouTube, TikTok, Reels, Twitter, SoundCloud...)" autocomplete="off" spellcheck="false">
 
                 <div class="url-tools">
                     <button class="btn-clear-input" id="clearUrlBtn" type="button" title="Clear input">✕</button>
@@ -1124,7 +1278,7 @@
             </div>
         </div>
 
-        <!-- Controls Grid (Format Switcher & Quality Resolution) -->
+        <!-- Controls Grid (Target Format & Quality Profile) -->
         <div class="controls-grid">
             <div class="control-block">
                 <label class="control-label">Target Format</label>
@@ -1169,11 +1323,11 @@
             </div>
         </div>
 
-        <!-- Extra Stream Options -->
+        <!-- Extra Stream Options (Refined Glass Toggle Pills) -->
         <div class="stream-options-row">
             <label class="option-toggle">
                 <input type="checkbox" id="optThumb" checked>
-                <span>Embed Original High-Res Cover Art</span>
+                <span>Embed High-Res Cover Art</span>
             </label>
             <label class="option-toggle">
                 <input type="checkbox" id="optSubs">
@@ -1184,10 +1338,10 @@
         <!-- Primary Action Download Button -->
         <button class="btn-extract-media" id="dlBtn" type="button">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            <span id="dlBtnTxt">Download Video</span>
+            <span id="dlBtnTxt">Reap Video Stream</span>
         </button>
 
-        <!-- Live Media Preview -->
+        <!-- Live Media Preview Deck -->
         <div class="media-preview-deck" id="mediaPreview">
             <div class="preview-thumb-box">
                 <img id="prevImg" src="" alt="Thumbnail">
@@ -1220,64 +1374,17 @@
 
     </div>
 
-    <!-- Supported Platforms Ecosystem Ribbon (Onion AI Style) -->
-    <section class="ecosystem-section" id="platforms">
-        <div class="ecosystem-heading">Supported Media Protocols &amp; Platforms</div>
-        <div class="platforms-chip-row">
-            <div class="platform-chip">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
-                <span>YouTube 4K</span>
-            </div>
-            <div class="platform-chip">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.24 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>
-                <span>TikTok HD</span>
-            </div>
-            <div class="platform-chip">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
-                <span>Instagram Reels</span>
-            </div>
-            <div class="platform-chip">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-                <span>Twitter / X</span>
-            </div>
-            <div class="platform-chip">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M1.175 12.225c-.051 0-.094.044-.101.096l-.544 3.738c-.01.066.038.125.104.125.047 0 .09-.039.097-.086l.544-3.747c.01-.067-.038-.126-.1-.126zm1.536-1.879c-.067 0-.125.053-.133.12l-.934 5.503c-.01.066.04.124.106.124.062 0 .117-.048.127-.109l.934-5.503c.01-.073-.042-.135-.1-.135zm1.534-.418c-.078 0-.142.062-.15.141l-.916 5.922c-.01.077.05.143.127.143.073 0 .135-.058.146-.13l.916-5.922c.012-.086-.051-.154-.123-.154zm1.532-1.385c-.085 0-.156.071-.165.156l-.898 7.307c-.01.085.056.158.141.158.08 0 .148-.066.158-.146l.898-7.307c.012-.093-.056-.168-.134-.168zm1.533.64c-.09 0-.166.075-.175.166l-.88 6.667c-.01.09.062.169.153.169.086 0 .159-.072.17-.158l.88-6.667c.013-.099-.06-.177-.148-.177zm18.358 2.012c-.525 0-.994.218-1.332.568-.344-1.921-2.008-3.376-4.02-3.376-.845 0-1.626.26-2.278.705-.333-.42-.843-.69-1.417-.69-.174 0-.341.026-.5.074v-5.267c0-.144-.117-.261-.261-.261-.144 0-.261.117-.261.261v11.168c0 .144.117.261.261.261h9.808c1.397 0 2.53-1.133 2.53-2.53 0-1.398-1.133-2.53-2.53-2.53z"/></svg>
-                <span>SoundCloud MP3</span>
-            </div>
-            <div class="platform-chip">
-                <span>Direct MP4 / M3U8</span>
-            </div>
-        </div>
-    </section>
+    <!-- Minimalist Translucent Ecosystem Ribbon -->
+    <div class="platforms-chip-row">
+        <span class="platform-chip">YouTube 4K</span>
+        <span class="platform-chip">TikTok HD</span>
+        <span class="platform-chip">Instagram Reels</span>
+        <span class="platform-chip">Twitter / X</span>
+        <span class="platform-chip">SoundCloud MP3</span>
+        <span class="platform-chip">1,000+ Platforms</span>
+    </div>
 
-    <!-- Architecture & Features (Onion AI Style Grid) -->
-    <section class="features-grid" id="features">
-        <div class="feature-card">
-            <span class="feature-num">01 // VIDEO MUXING</span>
-            <h3 class="feature-title">4K Lossless Streams</h3>
-            <p class="feature-desc">Direct high-bitrate video and audio DASH stream extraction multiplexed with FFMPEG engine.</p>
-        </div>
-
-        <div class="feature-card">
-            <span class="feature-num">02 // MASTER AUDIO</span>
-            <h3 class="feature-title">320kbps MP3 Master</h3>
-            <p class="feature-desc">Studio-grade audio transcoding with original album artwork, metadata, and high-frequency preservation.</p>
-        </div>
-
-        <div class="feature-card">
-            <span class="feature-num">03 // NON-BLOCKING</span>
-            <h3 class="feature-title">Async Event Worker</h3>
-            <p class="feature-desc">Zero browser hanging. Background multi-threaded processing with live real-time status telemetry.</p>
-        </div>
-
-        <div class="feature-card">
-            <span class="feature-num">04 // PROTOCOLS</span>
-            <h3 class="feature-title">1,000+ Platforms</h3>
-            <p class="feature-desc">Universal media resolver supporting social platforms, CDN streams, HLS playlists, and podcasts.</p>
-        </div>
-    </section>
-
-    <!-- Recent Downloads History Drawer -->
+    <!-- Recent Extractions Drawer -->
     <section class="recent-section" id="recentSection" style="display:none;">
         <div class="recent-header">
             <h2 class="recent-title">Recent Extractions</h2>
@@ -1286,7 +1393,61 @@
         <div class="recent-list" id="recentList"></div>
     </section>
 
+    <!-- Sleek Glass Footer -->
+    <footer class="app-footer">
+        <div>AuvidReaper Studio Engine • Lossless Universal Media Extraction</div>
+    </footer>
+
 </main>
+
+<!-- Modal 1: Desktop Helper / One-Click Installer -->
+<div class="modal-backdrop" id="helperModal">
+    <div class="modal-window">
+        <div class="modal-header">
+            <h3 class="modal-title">AuvidReaper Local Helper</h3>
+            <button class="modal-close" id="closeHelperModal" type="button">✕</button>
+        </div>
+        <div class="modal-body">
+            <p>The <strong>AuvidReaper Local Helper</strong> runs seamlessly in your Windows system tray to bypass browser limitations, download massive 4K streams locally, and manage background tasks.</p>
+            <div style="background:rgba(255,255,255,0.05);padding:14px;border-radius:12px;border:1px solid rgba(255,255,255,0.1);">
+                <div style="font-weight:700;color:#fff;margin-bottom:6px;">Features:</div>
+                <ul style="padding-left:18px;display:flex;flex-direction:column;gap:4px;">
+                    <li>Zero-setup one-click Windows executable</li>
+                    <li>Runs quietly in your system tray</li>
+                    <li>Automatically routes web requests for max speed</li>
+                </ul>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <a href="/download-installer" class="btn-extract-media" style="padding:12px 20px;font-size:14px;text-decoration:none;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Download Windows Helper (.exe)</span>
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Modal 2: Outbound Proxy Settings -->
+<div class="modal-backdrop" id="proxyModal">
+    <div class="modal-window">
+        <div class="modal-header">
+            <h3 class="modal-title">Network Proxy Settings</h3>
+            <button class="modal-close" id="closeProxyModal" type="button">✕</button>
+        </div>
+        <div class="modal-body">
+            <p>Route media downloads through a custom HTTP, HTTPS, or SOCKS5 proxy to bypass regional restrictions or IP blocks.</p>
+            <div>
+                <label style="font-size:11.5px;font-weight:800;color:var(--text-dim);text-transform:uppercase;margin-bottom:6px;display:block;">Proxy URL</label>
+                <input class="modal-input" id="proxyInput" type="text" placeholder="http://user:pass@127.0.0.1:8080 or socks5://...">
+            </div>
+            <div id="proxyTestResult" style="display:none;font-size:12.5px;padding:8px 12px;border-radius:8px;"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-nav-glass" id="btnTestProxy" type="button">Test Proxy</button>
+            <button class="btn-extract-media" id="btnSaveProxy" type="button" style="padding:10px 18px;font-size:13.5px;">Save Settings</button>
+        </div>
+    </div>
+</div>
 
 <!-- Application Logic -->
 <script>
@@ -1296,11 +1457,19 @@
 const API = window.location.origin;
 let currentFmt = 'video';
 let currentThumbUrl = '';
-let recentDownloads = JSON.parse(localStorage.getItem('sg_recent_downloads') || '[]');
+let customProxy = localStorage.getItem('ar_custom_proxy') || '';
+
+// Load recent downloads (support migration from sg_ to ar_)
+let recentDownloads = JSON.parse(
+    localStorage.getItem('ar_recent_downloads') || 
+    localStorage.getItem('sg_recent_downloads') || 
+    '[]'
+);
 
 /* ── DOM Elements ────────────────────────────────────────────── */
 const videoUrlInput = document.getElementById('videoUrl');
 const clearUrlBtn = document.getElementById('clearUrlBtn');
+const quickClearIcon = document.getElementById('quickClearIcon');
 const pasteBtn = document.getElementById('pasteBtn');
 const platformBadge = document.getElementById('platformBadge');
 const platformName = document.getElementById('platformName');
@@ -1335,12 +1504,26 @@ const recentSection = document.getElementById('recentSection');
 const recentList = document.getElementById('recentList');
 const btnClearHistory = document.getElementById('btnClearHistory');
 
+// Modals
+const helperModal = document.getElementById('helperModal');
+const openHelperNavBtn = document.getElementById('openHelperNavBtn');
+const closeHelperModal = document.getElementById('closeHelperModal');
+
+const proxyModal = document.getElementById('proxyModal');
+const openProxyNavBtn = document.getElementById('openProxyNavBtn');
+const closeProxyModal = document.getElementById('closeProxyModal');
+const proxyInput = document.getElementById('proxyInput');
+const btnTestProxy = document.getElementById('btnTestProxy');
+const btnSaveProxy = document.getElementById('btnSaveProxy');
+const proxyTestResult = document.getElementById('proxyTestResult');
+
 /* ── Engine Connectivity Check ───────────────────────────────── */
 async function checkEngineStatus() {
     const lbl = document.getElementById('engineStatusLabel');
     try {
         const res = await fetch(API + '/health');
         if (res.ok) {
+            const data = await res.json();
             if (lbl) lbl.textContent = 'Engine Online';
         } else {
             if (lbl) lbl.textContent = 'Server Busy';
@@ -1363,25 +1546,73 @@ function hideAlert() {
 alertCloseBtn.addEventListener('click', hideAlert);
 
 /* ── URL Detection & Quick Tools ─────────────────────────────── */
+/* ── URL Detection, Quick Tools & Background Pre-Warming ─────── */
+let prewarmTimer = null;
+let lastPrewarmedUrl = '';
+
+function updatePreviewFromInfo(info) {
+    if (!info) return;
+    if (info.thumbnail) {
+        prevImg.src = info.thumbnail;
+        currentThumbUrl = info.thumbnail;
+        prevImg.parentElement.style.display = '';
+        btnQuickThumb.style.display = '';
+    } else {
+        prevImg.parentElement.style.display = 'none';
+        btnQuickThumb.style.display = 'none';
+    }
+    prevTitle.textContent = info.title || 'Media Stream';
+    prevPlatform.textContent = info.platform || 'Universal';
+    prevDuration.textContent = info.duration ? `Duration: ${info.duration}` : 'Live Stream';
+    mediaPreview.classList.add('show');
+}
+
+function triggerPrewarm(url) {
+    if (!url || !url.startsWith('http') || url === lastPrewarmedUrl) return;
+    clearTimeout(prewarmTimer);
+    prewarmTimer = setTimeout(async () => {
+        lastPrewarmedUrl = url;
+        try {
+            const payload = { url };
+            if (customProxy) payload.proxy = customProxy;
+            const res = await fetch(API + '/info', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                const info = await res.json();
+                updatePreviewFromInfo(info);
+            }
+        } catch(_) {}
+    }, 380);
+}
+
 function handleUrlInput() {
     const val = videoUrlInput.value.trim();
     clearUrlBtn.classList.toggle('show', val.length > 0);
 
     const low = val.toLowerCase();
     if (low.includes('youtube.com') || low.includes('youtu.be')) {
-        platformName.textContent = 'YouTube';
+        platformName.textContent = 'YouTube 4K';
         platformBadge.classList.add('detected');
     } else if (low.includes('tiktok.com')) {
-        platformName.textContent = 'TikTok';
+        platformName.textContent = 'TikTok HD';
         platformBadge.classList.add('detected');
     } else if (low.includes('instagram.com')) {
-        platformName.textContent = 'Instagram';
+        platformName.textContent = 'Instagram Reels';
         platformBadge.classList.add('detected');
     } else if (low.includes('twitter.com') || low.includes('x.com')) {
         platformName.textContent = 'Twitter / X';
         platformBadge.classList.add('detected');
     } else if (low.includes('soundcloud.com')) {
-        platformName.textContent = 'SoundCloud';
+        platformName.textContent = 'SoundCloud Master';
+        platformBadge.classList.add('detected');
+    } else if (low.includes('twitch.tv')) {
+        platformName.textContent = 'Twitch Stream';
+        platformBadge.classList.add('detected');
+    } else if (low.includes('reddit.com')) {
+        platformName.textContent = 'Reddit Video';
         platformBadge.classList.add('detected');
     } else if (low.startsWith('http')) {
         platformName.textContent = 'Media Stream';
@@ -1390,16 +1621,24 @@ function handleUrlInput() {
         platformName.textContent = 'Stream Link';
         platformBadge.classList.remove('detected');
     }
+
+    if (val.startsWith('http')) {
+        triggerPrewarm(val);
+    }
 }
 
 videoUrlInput.addEventListener('input', handleUrlInput);
 
-clearUrlBtn.addEventListener('click', () => {
+function clearInput() {
     videoUrlInput.value = '';
+    lastPrewarmedUrl = '';
     handleUrlInput();
     videoUrlInput.focus();
     mediaPreview.classList.remove('show');
-});
+}
+
+clearUrlBtn.addEventListener('click', clearInput);
+if (quickClearIcon) quickClearIcon.addEventListener('click', clearInput);
 
 pasteBtn.addEventListener('click', async () => {
     try {
@@ -1422,7 +1661,7 @@ btnFmtVideo.addEventListener('click', () => {
     currentFmt = 'video';
     vQualityWrap.style.display = '';
     aQualityWrap.style.display = 'none';
-    dlBtnTxt.textContent = 'Download Video';
+    dlBtnTxt.textContent = 'Reap Video Stream';
 });
 
 btnFmtAudio.addEventListener('click', () => {
@@ -1431,7 +1670,7 @@ btnFmtAudio.addEventListener('click', () => {
     currentFmt = 'audio';
     vQualityWrap.style.display = 'none';
     aQualityWrap.style.display = '';
-    dlBtnTxt.textContent = 'Download Audio';
+    dlBtnTxt.textContent = 'Reap Audio Stream (MP3)';
 });
 
 /* ── Progress Helpers ────────────────────────────────────────── */
@@ -1457,16 +1696,16 @@ function hideProgress() {
 function setBtnLoading(loading) {
     dlBtn.disabled = loading;
     if (loading) {
-        dlBtn.innerHTML = '<div class="spinner"></div><span>Extracting Stream...</span>';
+        dlBtn.innerHTML = '<div class="spinner"></div><span>Harvesting Stream...</span>';
     } else {
-        const lbl = currentFmt === 'audio' ? 'Download Audio' : 'Download Video';
+        const lbl = currentFmt === 'audio' ? 'Reap Audio Stream (MP3)' : 'Reap Video Stream';
         dlBtn.innerHTML = `
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             <span>${lbl}</span>`;
     }
 }
 
-/* ── Recent Downloads ────────────────────────────────────────── */
+/* ── Recent Downloads History ────────────────────────────────── */
 function renderRecentDownloads() {
     if (!recentDownloads || recentDownloads.length === 0) {
         recentSection.style.display = 'none';
@@ -1498,6 +1737,7 @@ window.reDownloadUrl = function(encodedUrl) {
 
 btnClearHistory.addEventListener('click', () => {
     recentDownloads = [];
+    localStorage.removeItem('ar_recent_downloads');
     localStorage.removeItem('sg_recent_downloads');
     renderRecentDownloads();
 });
@@ -1515,7 +1755,7 @@ btnQuickThumb.addEventListener('click', async () => {
             const blob = await res.blob();
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = 'cover_art.jpg';
+            a.download = 'auvid_cover_art.jpg';
             a.click();
         }
     } catch(e) {
@@ -1523,7 +1763,7 @@ btnQuickThumb.addEventListener('click', async () => {
     }
 });
 
-/* ── Main Download Flow ──────────────────────────────────────── */
+/* ── Main Download Flow (High-Throughput Parallel Pipeline) ───── */
 dlBtn.addEventListener('click', async () => {
     const url = videoUrlInput.value.trim();
     const quality = currentFmt === 'audio' ? aQuality.value : vQuality.value;
@@ -1538,53 +1778,42 @@ dlBtn.addEventListener('click', async () => {
 
     hideAlert();
     setBtnLoading(true);
-    setProgress('Connecting to media host...', 15);
+    setProgress('Allocating stream buffers...', 20, true);
 
-    // 1. Fetch Metadata Preview
-    try {
-        const infoRes = await fetch(API + '/info', {
+    // 1. Concurrently fetch metadata preview if not already cached
+    if (!mediaPreview.classList.contains('show')) {
+        const infoPayload = { url };
+        if (customProxy) infoPayload.proxy = customProxy;
+        fetch(API + '/info', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ url })
-        });
+            body: JSON.stringify(infoPayload)
+        }).then(r => r.ok ? r.json() : null).then(info => {
+            if (info) updatePreviewFromInfo(info);
+        }).catch(() => {});
+    }
 
-        if (infoRes.ok) {
-            const info = await infoRes.json();
-            if (info.thumbnail) {
-                prevImg.src = info.thumbnail;
-                currentThumbUrl = info.thumbnail;
-                prevImg.parentElement.style.display = '';
-                btnQuickThumb.style.display = '';
-            } else {
-                prevImg.parentElement.style.display = 'none';
-                btnQuickThumb.style.display = 'none';
-            }
-            prevTitle.textContent = info.title || 'Media Stream';
-            prevPlatform.textContent = info.platform || 'Universal';
-            prevDuration.textContent = info.duration ? `Duration: ${info.duration}` : 'Live Stream';
-            mediaPreview.classList.add('show');
-        }
-    } catch(_) {}
-
-    // 2. Start Async Extraction
-    setProgress('Allocating stream buffers...', 25, true);
+    // 2. Start Async Extraction Task immediately without blocking
     let startRes;
     try {
+        const dlPayload = {
+            url,
+            format: currentFmt,
+            quality,
+            subtitles: wantSubs,
+            thumbnail: wantThumb
+        };
+        if (customProxy) dlPayload.proxy = customProxy;
+
         startRes = await fetch(API + '/start_download', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                url,
-                format: currentFmt,
-                quality,
-                subtitles: wantSubs,
-                thumbnail: wantThumb
-            })
+            body: JSON.stringify(dlPayload)
         });
     } catch(err) {
         hideProgress();
         setBtnLoading(false);
-        showAlert('Cannot connect to downloader backend. Please ensure the server is running.', 'err');
+        showAlert('Cannot connect to AuvidReaper backend. Please check connection.', 'err');
         return;
     }
 
@@ -1603,20 +1832,27 @@ dlBtn.addEventListener('click', async () => {
 
     const { task_id } = await startRes.json();
 
-    // 3. Status Polling Loop
+    // 3. Status Polling Loop with Adaptive Cadence (Fast 250ms Initial Checks)
     let polls = 0;
-    const maxPolls = 300;
+    const maxPolls = 350;
     let completed = false;
     let finalTitle = prevTitle.textContent || 'Media File';
 
     while (polls < maxPolls) {
         polls++;
-        await new Promise(r => setTimeout(r, 1000));
+        const pollInterval = polls < 6 ? 250 : (polls < 16 ? 500 : 800);
+        await new Promise(r => setTimeout(r, pollInterval));
 
         try {
             const statRes = await fetch(`${API}/status/${task_id}`);
             if (!statRes.ok) continue;
             const stat = await statRes.json();
+
+            // Populate live metadata as soon as worker resolves it
+            if (stat.title && (!mediaPreview.classList.contains('show') || prevTitle.textContent === 'Inspecting Media Stream...')) {
+                updatePreviewFromInfo(stat);
+                finalTitle = stat.title;
+            }
 
             if (stat.error) {
                 hideProgress();
@@ -1626,13 +1862,13 @@ dlBtn.addEventListener('click', async () => {
             }
 
             if (stat.status === 'initializing' || stat.status === 'starting') {
-                setProgress('Allocating stream buffers...', 20);
+                setProgress('Allocating stream buffers...', 25, true);
             } else if (stat.status === 'downloading') {
                 setProgress(`Downloading stream... ${stat.progress}%`, stat.progress);
             } else if (stat.status === 'merging') {
-                setProgress('Multiplexing with FFMPEG engine...', 99, true);
+                setProgress('Multiplexing audio & video with FFMPEG engine...', 99, true);
             } else if (stat.status === 'completed') {
-                setProgress('Download completed! Delivering file...', 100);
+                setProgress('Stream harvested! Delivering file...', 100);
                 completed = true;
                 break;
             }
@@ -1654,376 +1890,369 @@ dlBtn.addEventListener('click', async () => {
         format: currentFmt,
         time: nowStr
     });
-    localStorage.setItem('sg_recent_downloads', JSON.stringify(recentDownloads.slice(0, 15)));
+    localStorage.setItem('ar_recent_downloads', JSON.stringify(recentDownloads.slice(0, 15)));
     renderRecentDownloads();
 
-    // 5. Trigger File Download
+    // 5. Trigger File Download with zero delay
     const downloadUrl = `${API}/get_file/${task_id}`;
     window.location.href = downloadUrl;
 
     hideProgress();
     setBtnLoading(false);
-    showAlert(`✓ ${currentFmt === 'audio' ? 'Audio MP3' : 'Video MP4'} ready and downloading!`, 'ok');
+    showAlert(`✓ ${currentFmt === 'audio' ? 'Audio MP3' : 'Video MP4'} ready and delivering!`, 'ok');
 });
 
-/* ── Init ────────────────────────────────────────────────────── */
+/* ── Modal Controls ──────────────────────────────────────────── */
+openHelperNavBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    helperModal.classList.add('show');
+});
+closeHelperModal.addEventListener('click', () => {
+    helperModal.classList.remove('show');
+});
+
+openProxyNavBtn.addEventListener('click', () => {
+    proxyInput.value = customProxy;
+    proxyTestResult.style.display = 'none';
+    proxyModal.classList.add('show');
+});
+closeProxyModal.addEventListener('click', () => {
+    proxyModal.classList.remove('show');
+});
+
+btnTestProxy.addEventListener('click', async () => {
+    const p = proxyInput.value.trim();
+    if (!p) {
+        proxyTestResult.style.display = 'block';
+        proxyTestResult.style.background = 'rgba(239, 68, 68, 0.2)';
+        proxyTestResult.style.color = '#fca5a5';
+        proxyTestResult.textContent = 'Please enter a proxy URL to test.';
+        return;
+    }
+    btnTestProxy.disabled = true;
+    btnTestProxy.textContent = 'Testing...';
+    try {
+        const res = await fetch(API + '/test_proxy', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ proxy: p })
+        });
+        const d = await res.json();
+        proxyTestResult.style.display = 'block';
+        if (d.ok) {
+            proxyTestResult.style.background = 'rgba(20, 184, 166, 0.2)';
+            proxyTestResult.style.color = '#5eead4';
+            proxyTestResult.textContent = d.message || 'Proxy connected successfully!';
+        } else {
+            proxyTestResult.style.background = 'rgba(239, 68, 68, 0.2)';
+            proxyTestResult.style.color = '#fca5a5';
+            proxyTestResult.textContent = d.error || 'Connection failed.';
+        }
+    } catch(e) {
+        proxyTestResult.style.display = 'block';
+        proxyTestResult.style.background = 'rgba(239, 68, 68, 0.2)';
+        proxyTestResult.style.color = '#fca5a5';
+        proxyTestResult.textContent = 'Could not reach server proxy tester.';
+    } finally {
+        btnTestProxy.disabled = false;
+        btnTestProxy.textContent = 'Test Proxy';
+    }
+});
+
+btnSaveProxy.addEventListener('click', () => {
+    customProxy = proxyInput.value.trim();
+    localStorage.setItem('ar_custom_proxy', customProxy);
+    proxyModal.classList.remove('show');
+    showAlert(customProxy ? 'Custom proxy saved and enabled.' : 'Custom proxy cleared.', 'ok');
+    setTimeout(hideAlert, 2500);
+});
+
+// Close modal on outside click
+window.addEventListener('click', (e) => {
+    if (e.target === helperModal) helperModal.classList.remove('show');
+    if (e.target === proxyModal) proxyModal.classList.remove('show');
+});
+
+/* ── Init Application ────────────────────────────────────────── */
 checkEngineStatus();
 renderRecentDownloads();
 
-/* ── Interactive 3D Matter & Quantum Reformation Engine ───────── */
-(function init3DMatterEngine() {
-    const canvas = document.getElementById('matter3dCanvas');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    let width = 0, height = 0, dpr = Math.min(window.devicePixelRatio || 1, 2);
-
-    function resize() {
-        width = window.innerWidth;
-        height = window.innerHeight;
-        canvas.width = width * dpr;
-        canvas.height = height * dpr;
-        ctx.scale(dpr, dpr);
-    }
-    window.addEventListener('resize', resize);
-    resize();
-
-    // ── 3D Math Utilities ──
-    function rotateX(p, angle) {
-        const rad = angle * Math.PI / 180;
-        const cos = Math.cos(rad), sin = Math.sin(rad);
-        return {
-            x: p.x,
-            y: p.y * cos - p.z * sin,
-            z: p.y * sin + p.z * cos
-        };
+/* ── Master 3D WebGL Obsidian Sphere Engine (Three.js Physically Based Rendering) ── */
+(function initThreeObsidianEngine() {
+    if (typeof THREE === 'undefined') {
+        console.warn('Three.js library pending or not loaded.');
+        return;
     }
 
-    function rotateY(p, angle) {
-        const rad = angle * Math.PI / 180;
-        const cos = Math.cos(rad), sin = Math.sin(rad);
-        return {
-            x: p.x * cos + p.z * sin,
-            y: p.y,
-            z: -p.x * sin + p.z * cos
-        };
+    const bgCanvas = document.getElementById('bgSpheresCanvas');
+    const fgCanvas = document.getElementById('fgSpheresCanvas');
+    if (!bgCanvas || !fgCanvas) return;
+
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+
+    // Shared 3D Scene
+    const scene = new THREE.Scene();
+
+    // Studio Perspective Camera
+    const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
+    camera.position.set(0, 0, 16);
+
+    // High Performance WebGL Renderer for Background (behind frosted card, Layer 0)
+    const bgRenderer = new THREE.WebGLRenderer({
+        canvas: bgCanvas,
+        alpha: true,
+        antialias: true,
+        powerPreference: "high-performance"
+    });
+    bgRenderer.setSize(width, height);
+    bgRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    bgRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+    bgRenderer.toneMappingExposure = 1.25;
+
+    // High Performance WebGL Renderer for Foreground (overlapping card, Layer 1)
+    const fgRenderer = new THREE.WebGLRenderer({
+        canvas: fgCanvas,
+        alpha: true,
+        antialias: true,
+        powerPreference: "high-performance"
+    });
+    fgRenderer.setSize(width, height);
+    fgRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    fgRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+    fgRenderer.toneMappingExposure = 1.25;
+
+    // ── Procedural High-Contrast Studio Environment Map ───────────────
+    function createStudioEnvironment() {
+        const envCanvas = document.createElement('canvas');
+        envCanvas.width = 512;
+        envCanvas.height = 256;
+        const ectx = envCanvas.getContext('2d');
+
+        // Dark obsidian gradient space
+        const bgGrad = ectx.createLinearGradient(0, 0, 0, 256);
+        bgGrad.addColorStop(0, '#050811');
+        bgGrad.addColorStop(0.5, '#010205');
+        bgGrad.addColorStop(1, '#000000');
+        ectx.fillStyle = bgGrad;
+        ectx.fillRect(0, 0, 512, 256);
+
+        // Top-left softbox specular reflection
+        const softbox = ectx.createRadialGradient(160, 65, 5, 160, 65, 85);
+        softbox.addColorStop(0, 'rgba(255, 255, 255, 0.98)');
+        softbox.addColorStop(0.25, 'rgba(224, 242, 254, 0.7)');
+        softbox.addColorStop(0.6, 'rgba(56, 189, 248, 0.3)');
+        softbox.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ectx.fillStyle = softbox;
+        ectx.beginPath();
+        ectx.arc(160, 65, 85, 0, Math.PI * 2);
+        ectx.fill();
+
+        // Bottom neon cyan rim light strip
+        const cyanStrip = ectx.createRadialGradient(320, 205, 10, 320, 205, 110);
+        cyanStrip.addColorStop(0, 'rgba(34, 211, 238, 0.95)');
+        cyanStrip.addColorStop(0.4, 'rgba(6, 182, 212, 0.6)');
+        cyanStrip.addColorStop(0.8, 'rgba(13, 148, 136, 0.2)');
+        cyanStrip.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ectx.fillStyle = cyanStrip;
+        ectx.beginPath();
+        ectx.arc(320, 205, 110, 0, Math.PI * 2);
+        ectx.fill();
+
+        // Subtle warm gold rim accent at right
+        const goldAccent = ectx.createRadialGradient(440, 90, 5, 440, 90, 60);
+        goldAccent.addColorStop(0, 'rgba(255, 209, 102, 0.65)');
+        goldAccent.addColorStop(0.5, 'rgba(245, 158, 11, 0.25)');
+        goldAccent.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ectx.fillStyle = goldAccent;
+        ectx.beginPath();
+        ectx.arc(440, 90, 60, 0, Math.PI * 2);
+        ectx.fill();
+
+        const tex = new THREE.CanvasTexture(envCanvas);
+        tex.mapping = THREE.EquirectangularReflectionMapping;
+        const pmrem = new THREE.PMREMGenerator(bgRenderer);
+        pmrem.compileEquirectangularShader();
+        const envMap = pmrem.fromEquirectangular(tex).texture;
+        pmrem.dispose();
+        return envMap;
     }
 
-    function rotateZ(p, angle) {
-        const rad = angle * Math.PI / 180;
-        const cos = Math.cos(rad), sin = Math.sin(rad);
-        return {
-            x: p.x * cos - p.y * sin,
-            y: p.x * sin + p.y * cos,
-            z: p.z
-        };
-    }
+    const envMap = createStudioEnvironment();
+    scene.environment = envMap;
 
-    // ── Matter Particle Class ──
-    class MatterParticle {
-        constructor(base3D, color, baseSize = 4) {
-            this.base3D = base3D; // {x, y, z} relative to object center
-            this.color = color;
-            this.baseSize = baseSize;
+    // ── Studio Lighting Rig (Exact Specular Glint & Electric Cyan Rim) ──
+    // 1. Primary White Studio Key Light (Top-Left circular specular glint)
+    const keyLight = new THREE.PointLight(0xffffff, 6.2, 60);
+    keyLight.position.set(-6.0, 7.5, 8.0);
+    keyLight.layers.enable(1);
+    scene.add(keyLight);
 
-            // Current 3D offsets from target
-            this.ox = 0;
-            this.oy = 0;
-            this.oz = 0;
+    // 2. Electric Aqua/Cyan Rim Light (Creates reference image underbelly rim)
+    const cyanRimLight = new THREE.PointLight(0x00f5ff, 10.0, 60);
+    cyanRimLight.position.set(1.5, -8.0, 4.5);
+    cyanRimLight.layers.enable(1);
+    scene.add(cyanRimLight);
 
-            // Velocities
-            this.vx = 0;
-            this.vy = 0;
-            this.vz = 0;
+    // 3. Accent Soft Sky-Blue Light
+    const accentBlue = new THREE.PointLight(0x0284c7, 2.5, 60);
+    accentBlue.position.set(7.5, -1.5, 3.0);
+    accentBlue.layers.enable(1);
+    scene.add(accentBlue);
 
-            // Screen projection
-            this.screenX = 0;
-            this.screenY = 0;
-            this.screenZ = 0;
-            this.screenScale = 1;
-            this.alpha = 1;
-        }
+    // 4. Subtle Warm Amber Edge Light (Upper right edge golden sheen)
+    const warmRimLight = new THREE.PointLight(0xffd166, 1.6, 60);
+    warmRimLight.position.set(6.5, 6.0, -3.0);
+    warmRimLight.layers.enable(1);
+    scene.add(warmRimLight);
 
-        explode(force, touchDirX = 0, touchDirY = 0) {
-            const angle = Math.random() * Math.PI * 2;
-            const elevation = (Math.random() - 0.5) * Math.PI;
-            const speed = force * (0.8 + Math.random() * 1.6);
+    // 5. Deep Space Ambient (Deep obsidian shadows without washing out contrast)
+    const ambient = new THREE.AmbientLight(0x010204, 1.0);
+    ambient.layers.enable(1);
+    scene.add(ambient);
 
-            this.vx = Math.cos(elevation) * Math.cos(angle) * speed + touchDirX * speed * 0.5;
-            this.vy = Math.sin(elevation) * speed + touchDirY * speed * 0.5;
-            this.vz = Math.cos(elevation) * Math.sin(angle) * speed;
-        }
+    // ── Master PBR Obsidian Sphere Material ───────────────────────────
+    const baseSphereGeo = new THREE.SphereGeometry(1, 64, 64);
+    const sphereMaterial = new THREE.MeshPhysicalMaterial({
+        color: new THREE.Color(0x020306), // Pitch black obsidian body
+        roughness: 0.08,                  // Mirror glass polish
+        metalness: 0.16,                  // Lacquer depth
+        clearcoat: 1.0,                   // Wet glass clearcoat
+        clearcoatRoughness: 0.03,
+        reflectivity: 0.99,
+        envMap: envMap,
+        envMapIntensity: 1.4
+    });
 
-        update(damping = 0.92, spring = 0.055) {
-            // Apply velocity
-            this.ox += this.vx;
-            this.oy += this.vy;
-            this.oz += this.vz;
-
-            // Spring return force back to 0 (its solid coordinate)
-            const fx = -this.ox * spring;
-            const fy = -this.oy * spring;
-            const fz = -this.oz * spring;
-
-            this.vx = (this.vx + fx) * damping;
-            this.vy = (this.vy + fy) * damping;
-            this.vz = (this.vz + fz) * damping;
-        }
-    }
-
-    // ── 3D Shape Objects ──
-    class Interactive3DObject {
-        constructor(config) {
-            this.type = config.type; // 'torus', 'sphere', 'crystal'
-            this.posRel = config.posRel; // {xRatio, yRatio} e.g. {xRatio: 0.85, yRatio: 0.3}
-            this.rx = config.rx || 0;
-            this.ry = config.ry || 0;
-            this.rz = config.rz || 0;
-            this.spinSpeed = config.spinSpeed || {x: 0.3, y: 0.5, z: 0.2};
-            this.radius = config.radius || 70;
-            this.particles = [];
-            this.isShattered = false;
-            this.shatterTimer = 0;
-            this.generateParticles(config);
-        }
-
-        getCenter() {
-            return {
-                x: width * this.posRel.xRatio,
-                y: height * this.posRel.yRatio
-            };
-        }
-
-        generateParticles(config) {
-            const colors = config.colors || ['#f472b6', '#ec4899', '#c084fc', '#ffffff'];
-            const count = config.particleCount || 150;
-
-            if (this.type === 'torus') {
-                const R = this.radius; // Major radius
-                const r = this.radius * 0.38; // Minor radius (tube)
-                const uSteps = 22;
-                const vSteps = 10;
-                for (let u = 0; u < uSteps; u++) {
-                    const uAngle = (u / uSteps) * Math.PI * 2;
-                    for (let v = 0; v < vSteps; v++) {
-                        const vAngle = (v / vSteps) * Math.PI * 2;
-                        const x = (R + r * Math.cos(vAngle)) * Math.cos(uAngle);
-                        const y = (R + r * Math.cos(vAngle)) * Math.sin(uAngle);
-                        const z = r * Math.sin(vAngle);
-                        const col = colors[(u + v) % colors.length];
-                        this.particles.push(new MatterParticle({x, y, z}, col, 4.2));
-                    }
-                }
-            } else if (this.type === 'sphere') {
-                const R = this.radius;
-                const phi = Math.PI * (3 - Math.sqrt(5)); // Golden angle
-                for (let i = 0; i < count; i++) {
-                    const y = 1 - (i / (count - 1)) * 2;
-                    const radiusAtY = Math.sqrt(1 - y * y);
-                    const theta = phi * i;
-                    const x = Math.cos(theta) * radiusAtY;
-                    const z = Math.sin(theta) * radiusAtY;
-                    const col = colors[i % colors.length];
-                    this.particles.push(new MatterParticle({x: x * R, y: y * R, z: z * R}, col, 4.5));
-                }
-            } else if (this.type === 'crystal') {
-                const R = this.radius;
-                for (let i = 0; i < count; i++) {
-                    const t = (i / count) * Math.PI * 2;
-                    const ring = Math.floor(i / 15);
-                    const r = (ring % 2 === 0 ? R : R * 0.5) * (0.6 + Math.random() * 0.4);
-                    const x = Math.cos(t) * r;
-                    const y = Math.sin(t) * r;
-                    const z = (Math.random() - 0.5) * R * 1.4;
-                    const col = colors[i % colors.length];
-                    this.particles.push(new MatterParticle({x, y, z}, col, 4.0));
-                }
-            }
-        }
-
-        shatter(force = 12, fromX = 0, fromY = 0) {
-            this.isShattered = true;
-            this.shatterTimer = 180; // 3 seconds at 60fps
-            const center = this.getCenter();
-            const dirX = fromX ? (center.x - fromX) / 100 : 0;
-            const dirY = fromY ? (center.y - fromY) / 100 : 0;
-
-            this.particles.forEach(p => {
-                p.explode(force, dirX, dirY);
-            });
-        }
-
-        update(mouseX, mouseY, isTouchPress) {
-            // Natural 3D Rotation
-            this.rx = (this.rx + this.spinSpeed.x) % 360;
-            this.ry = (this.ry + this.spinSpeed.y) % 360;
-            this.rz = (this.rz + this.spinSpeed.z) % 360;
-
-            const center = this.getCenter();
-            const dist = Math.hypot(mouseX - center.x, mouseY - center.y);
-
-            // Trigger touch/hover shatter
-            if (dist < this.radius * 1.55) {
-                if (!this.isShattered || isTouchPress) {
-                    this.shatter(isTouchPress ? 18 : 9, mouseX, mouseY);
-                }
-            }
-
-            if (this.shatterTimer > 0) {
-                this.shatterTimer--;
-                if (this.shatterTimer === 0) {
-                    this.isShattered = false;
-                }
-            }
-
-            // Update all matter particles
-            const fov = 420;
-            this.particles.forEach(p => {
-                p.update(0.91, 0.055);
-
-                // Rotate base coordinate
-                let rCoord = rotateX(p.base3D, this.rx);
-                rCoord = rotateY(rCoord, this.ry);
-                rCoord = rotateZ(rCoord, this.rz);
-
-                // Add current matter displacement
-                const worldX = rCoord.x + p.ox;
-                const worldY = rCoord.y + p.oy;
-                const worldZ = rCoord.z + p.oz;
-
-                // Perspective projection
-                const scale = fov / (fov + worldZ + 150);
-                p.screenX = center.x + worldX * scale;
-                p.screenY = center.y + worldY * scale;
-                p.screenZ = worldZ;
-                p.screenScale = scale;
-                p.alpha = Math.max(0.2, Math.min(1, (worldZ + 150) / 250 + 0.3));
-            });
-        }
-
-        draw(ctx) {
-            // Sort by depth (Z) for 3D realism
-            const sorted = [...this.particles].sort((a, b) => a.screenZ - b.screenZ);
-
-            sorted.forEach(p => {
-                const r = Math.max(1, p.baseSize * p.screenScale);
-                ctx.save();
-                ctx.globalAlpha = p.alpha;
-                ctx.beginPath();
-                ctx.arc(p.screenX, p.screenY, r, 0, Math.PI * 2);
-
-                // Shimmering Radial Particle Glow
-                const grad = ctx.createRadialGradient(
-                    p.screenX - r * 0.3, p.screenY - r * 0.3, r * 0.1,
-                    p.screenX, p.screenY, r * 1.8
-                );
-                grad.addColorStop(0, '#ffffff');
-                grad.addColorStop(0.35, p.color);
-                grad.addColorStop(1, 'rgba(0,0,0,0)');
-
-                ctx.fillStyle = grad;
-                ctx.shadowColor = p.color;
-                ctx.shadowBlur = 12 * p.screenScale;
-                ctx.fill();
-                ctx.restore();
-            });
-        }
-    }
-
-    // ── Create 3D Scene Objects ──
-    const sceneObjects = [
-        // 1. Glossy 3D Pastel Torus Ring (Top Right)
-        new Interactive3DObject({
-            type: 'torus',
-            posRel: { xRatio: 0.88, yRatio: 0.28 },
-            radius: 80,
-            spinSpeed: { x: 0.4, y: 0.7, z: 0.3 },
-            colors: ['#f472b6', '#ec4899', '#c084fc', '#ffffff', '#fb7185']
-        }),
-        // 2. Volumetric 3D Sphere (Left Hero)
-        new Interactive3DObject({
-            type: 'sphere',
-            posRel: { xRatio: 0.12, yRatio: 0.32 },
-            radius: 68,
-            particleCount: 160,
-            spinSpeed: { x: 0.35, y: 0.5, z: 0.15 },
-            colors: ['#ec4899', '#d946ef', '#a855f7', '#fbcfe8', '#ffffff']
-        }),
-        // 3. Electric Cyan & Violet Orb (Bottom Left)
-        new Interactive3DObject({
-            type: 'sphere',
-            posRel: { xRatio: 0.14, yRatio: 0.78 },
-            radius: 46,
-            particleCount: 90,
-            spinSpeed: { x: -0.4, y: 0.6, z: 0.2 },
-            colors: ['#06b6d4', '#38bdf8', '#818cf8', '#67e8f9', '#ffffff']
-        }),
-        // 4. Faceted Star Crystal (Bottom Right)
-        new Interactive3DObject({
-            type: 'crystal',
-            posRel: { xRatio: 0.86, yRatio: 0.76 },
-            radius: 60,
-            particleCount: 110,
-            spinSpeed: { x: 0.5, y: -0.4, z: 0.6 },
-            colors: ['#fbbf24', '#f472b6', '#a855f7', '#ffffff']
-        })
+    // ── 7 Spheres Matching Reference Image Layout & Depth ─────────────
+    const sphereConfigs = [
+        // 1. Top-Left Sphere (Large, partially behind card top-left)
+        { radius: 2.5, x: -6.4, y: 3.8, z: -2.5, layer: 0, speed: 0.6, phase: 0.4, ampY: 0.16, ampX: 0.10, rotX: 0.0005, rotY: 0.0010 },
+        // 2. Top-Right Sphere (Behind card top-right)
+        { radius: 2.0, x: 4.2, y: 3.8, z: -2.8, layer: 0, speed: 0.55, phase: 2.3, ampY: 0.14, ampX: 0.09, rotX: -0.0006, rotY: 0.0008 },
+        // 3. Bottom-Right Sphere (Huge, behind card bottom-right with intense blue rim)
+        { radius: 3.3, x: 6.8, y: -2.0, z: -2.2, layer: 0, speed: 0.45, phase: 4.8, ampY: 0.20, ampX: 0.14, rotX: 0.0004, rotY: -0.0006 },
+        // 4. Bottom-Center Sphere (Under card bottom edge)
+        { radius: 1.6, x: 0.8, y: -4.5, z: -1.2, layer: 0, speed: 0.7, phase: 1.9, ampY: 0.12, ampX: 0.08, rotX: 0.0006, rotY: 0.0012 },
+        // 5. Bottom-Left FOREGROUND Sphere (Tucked at bottom-left corner with reduced radius to never obstruct controls)
+        { radius: 1.25, x: -6.8, y: -4.3, z: 1.4, layer: 1, speed: 0.65, phase: 3.2, ampY: 0.12, ampX: 0.08, rotX: -0.0005, rotY: -0.0010 },
+        // 6. Far-Left Small Orb (Floating free in space)
+        { radius: 0.65, x: -8.4, y: 0.8, z: -0.6, layer: 0, speed: 1.0, phase: 5.2, ampY: 0.22, ampX: 0.16, rotX: 0.0010, rotY: 0.0015 },
+        // 7. Far-Right Small Orb (Floating free in space)
+        { radius: 0.75, x: 8.4, y: 2.4, z: -1.0, layer: 0, speed: 0.9, phase: 1.1, ampY: 0.18, ampX: 0.14, rotX: -0.0008, rotY: 0.0012 }
     ];
 
-    // ── Touch & Pointer Listeners ──
-    let pointerX = -9999, pointerY = -9999, isPointerDown = false;
+    const spheres = [];
 
-    function handlePointer(x, y, isDown = false) {
-        pointerX = x;
-        pointerY = y;
-        isPointerDown = isDown;
+    sphereConfigs.forEach((cfg) => {
+        const mesh = new THREE.Mesh(baseSphereGeo, sphereMaterial.clone());
+        mesh.scale.setScalar(cfg.radius);
+        mesh.position.set(cfg.x, cfg.y, cfg.z);
+        mesh.layers.set(cfg.layer);
+
+        mesh.userData = {
+            baseX: cfg.x,
+            baseY: cfg.y,
+            baseZ: cfg.z,
+            baseRadius: cfg.radius,
+            speed: cfg.speed,
+            phase: cfg.phase,
+            ampY: cfg.ampY,
+            ampX: cfg.ampX,
+            rotX: cfg.rotX,
+            rotY: cfg.rotY,
+            currentScale: 1.0,
+            targetScale: 1.0
+        };
+
+        scene.add(mesh);
+        spheres.push(mesh);
+    });
+
+    // ── Smooth Camera Parallax & Cursor Specular Tracking ─────────────
+    let mouseNormX = 0;
+    let mouseNormY = 0;
+    let targetCamX = 0;
+    let targetCamY = 0;
+
+    window.addEventListener('pointermove', (e) => {
+        mouseNormX = (e.clientX / window.innerWidth) * 2 - 1;
+        mouseNormY = -(e.clientY / window.innerHeight) * 2 + 1;
+        targetCamX = mouseNormX * 1.1;
+        targetCamY = mouseNormY * 0.8;
+    }, { passive: true });
+
+    // Interactive Raycaster for subtle luxury hover reaction
+    const raycaster = new THREE.Raycaster();
+    let hoveredSphere = null;
+
+    // Resize Handler
+    function handleResize() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        camera.aspect = width / height;
+        camera.position.z = width < 768 ? 21 : 16;
+        camera.updateProjectionMatrix();
+
+        bgRenderer.setSize(width, height);
+        fgRenderer.setSize(width, height);
+    }
+    window.addEventListener('resize', handleResize);
+    handleResize();
+
+    // ── Animation Render Loop ─────────────────────────────────────────
+    const clock = new THREE.Clock();
+
+    function animate() {
+        requestAnimationFrame(animate);
+
+        const delta = clock.getDelta();
+        const elapsedTime = clock.getElapsedTime();
+
+        // 1. Smooth Camera Parallax (Silky Damping)
+        camera.position.x += (targetCamX - camera.position.x) * 0.035;
+        camera.position.y += (targetCamY - camera.position.y) * 0.035;
+        camera.lookAt(0, 0, 0);
+
+        // 2. Dynamic Specular Light Gliding across sphere curvature
+        keyLight.position.x += ((-6.5 + targetCamX * 2.2) - keyLight.position.x) * 0.05;
+        keyLight.position.y += ((7.5 + targetCamY * 2.2) - keyLight.position.y) * 0.05;
+
+        // 3. Raycast for Hover Reaction
+        raycaster.setFromCamera(new THREE.Vector2(mouseNormX, mouseNormY), camera);
+        const intersects = raycaster.intersectObjects(spheres);
+        hoveredSphere = intersects.length > 0 ? intersects[0].object : null;
+
+        // 4. Update Each Sphere (Harmonic floating, axial rotation, scale lerp)
+        for (let i = 0; i < spheres.length; i++) {
+            const s = spheres[i];
+            const u = s.userData;
+
+            // Harmonic organic floating
+            s.position.y = u.baseY + Math.sin(elapsedTime * u.speed + u.phase) * u.ampY;
+            s.position.x = u.baseX + Math.cos(elapsedTime * u.speed * 0.8 + u.phase) * u.ampX;
+
+            // Continuous 3D axial rotation
+            s.rotation.y += u.rotY;
+            s.rotation.x += u.rotX;
+
+            // Hover reaction: silky scale pulse without disruptive motion
+            u.targetScale = (s === hoveredSphere) ? 1.045 : 1.0;
+            u.currentScale += (u.targetScale - u.currentScale) * 0.08;
+            s.scale.setScalar(u.baseRadius * u.currentScale);
+        }
+
+        // 5. Dual-Layer Render Pass
+        // Pass A: Render background spheres onto bgCanvas (behind frosted card)
+        camera.layers.set(0);
+        bgRenderer.render(scene, camera);
+
+        // Pass B: Render foreground sphere onto fgCanvas (overlapping in front of card)
+        camera.layers.set(1);
+        fgRenderer.render(scene, camera);
     }
 
-    window.addEventListener('pointermove', (e) => handlePointer(e.clientX, e.clientY, false), { passive: true });
-    window.addEventListener('pointerdown', (e) => {
-        handlePointer(e.clientX, e.clientY, true);
-        // Direct shatter on click/tap
-        sceneObjects.forEach(obj => {
-            const c = obj.getCenter();
-            if (Math.hypot(e.clientX - c.x, e.clientY - c.y) < obj.radius * 2.2) {
-                obj.shatter(18, e.clientX, e.clientY);
-            }
-        });
-    }, { passive: true });
-
-    window.addEventListener('pointerup', () => { isPointerDown = false; }, { passive: true });
-
-    window.addEventListener('touchmove', (e) => {
-        if (e.touches && e.touches.length > 0) {
-            handlePointer(e.touches[0].clientX, e.touches[0].clientY, false);
-        }
-    }, { passive: true });
-
-    window.addEventListener('touchstart', (e) => {
-        if (e.touches && e.touches.length > 0) {
-            const tx = e.touches[0].clientX;
-            const ty = e.touches[0].clientY;
-            handlePointer(tx, ty, true);
-            sceneObjects.forEach(obj => {
-                const c = obj.getCenter();
-                if (Math.hypot(tx - c.x, ty - c.y) < obj.radius * 2.2) {
-                    obj.shatter(18, tx, ty);
-                }
-            });
-        }
-    }, { passive: true });
-
-    // ── Animation Loop ──
-    function render() {
-        ctx.clearRect(0, 0, width, height);
-
-        sceneObjects.forEach(obj => {
-            obj.update(pointerX, pointerY, isPointerDown);
-            obj.draw(ctx);
-        });
-
-        requestAnimationFrame(render);
-    }
-
-    render();
+    animate();
 })();
 </script>
 

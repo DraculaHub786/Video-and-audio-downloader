@@ -57,6 +57,15 @@ downloads/
 output/
 *.part
 *.ytdl
+*.mp4
+*.mp3
+*.webm
+*.mkv
+*.wav
+*.m4a
+*.ogg
+scratch_*
+*.spec
 
 # Local helper docs (not needed in repo history)
 COMPLETE_FIX.md

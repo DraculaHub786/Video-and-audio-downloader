@@ -33,7 +33,7 @@ def main():
     port = int(os.environ.get('LOCAL_AGENT_PORT', '9797'))
 
     print("=" * 56)
-    print("StreamGrab Local Helper")
+    print("AuvidReaper Local Helper")
     print(f"Listening on: http://{host}:{port}")
     print("Leave this window open while downloading.")
     print("=" * 56)

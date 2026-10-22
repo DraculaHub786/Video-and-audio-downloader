@@ -1,8 +1,10 @@
-# StreamGrab — Universal Video & Audio Downloader
+# AuvidReaper — Universal Studio-Grade Video & Audio Harvester
 
-A modern, privacy-focused web application for downloading videos and audio from **YouTube, Shorts, TikTok, Instagram, Twitter/X, Facebook, Vimeo, SoundCloud, Reddit, and 1000+ platforms**.
+A modern, high-performance, privacy-focused web application for harvesting and downloading media from **YouTube, Shorts, TikTok, Instagram Reels, Twitter/X, Facebook, Vimeo, SoundCloud, Reddit, and 1,000+ platforms**.
 
-Built with **Flask**, **yt-dlp**, and a clean vanilla JS frontend. Designed for cloud deployment (Render, Railway, Fly.io) with optional local-helper mode for unrestricted downloads.
+Featuring an ultra-realistic **iPhone / visionOS frosted steam glassmorphism design** with dynamic 3D obsidian orbs, teal & aqua ambient lighting, and studio-grade 320kbps MP3 / 4K DASH multiplexing.
+
+Built with **Flask**, **yt-dlp**, **FFMPEG**, and a responsive vanilla JS frontend. Designed for cloud deployment (Render, Railway, Fly.io) with an optional desktop local-helper companion for unrestricted downloads.
 
 ---
 
@@ -16,7 +18,7 @@ Built with **Flask**, **yt-dlp**, and a clean vanilla JS frontend. Designed for 
 | **Extras** | Optional thumbnail & subtitles download |
 | **No Signup** | Completely free, no accounts, no ads |
 | **Local Helper (Optional)** | Run downloads on your own IP to bypass all cloud restrictions |
-| **Cookie Consent / Enhanced Mode** | Users opt-in for smarter request patterns |
+| **In-Memory Cache & Pre-Warming** | Sub-millisecond metadata cache & parallel task dispatch |
 | **Async Queue** | Non-blocking downloads with real-time progress |
 | **Responsive UI** | Works on mobile, tablet, desktop |
 
@@ -25,48 +27,83 @@ Built with **Flask**, **yt-dlp**, and a clean vanilla JS frontend. Designed for 
 ## 🚀 Quick Start (Local Development)
 
 ```bash
-# 1. Clone & enter project
-git clone <your-repo-url>
-cd "video & audio downloader"
+# 1. Clone & enter repository
+git clone https://github.com/<your-username>/AuvidReaper.git
+cd AuvidReaper
 
 # 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. (Optional) Add YouTube cookies for local testing
-#    Place youtube_cookies.txt in project root, or:
-$env:YOUTUBE_COOKIES_BASE64 = "your-base64-cookies"
-
-# 4. Run server
+# 3. Run development server
 python app.py
 
-# 5. Open http://localhost:5000
+# 4. Open in browser: http://localhost:5000
+```
+
+### Run Cloud-Native Test Suite
+```bash
+python -m pytest tests/test_cloud_native.py -v
 ```
 
 ---
 
-## 🌐 Deploy to Render (Free Tier)
+## 🐳 Docker & Docker Compose (Any Cloud / VPS / Coolify)
+
+AuvidReaper includes a production-grade multi-stage `Dockerfile` with native FFMPEG and Node.js pre-installed:
+
+```bash
+# Build and run with Docker
+docker build -t auvidreaper .
+docker run -d -p 5000:5000 --name auvidreaper auvidreaper
+
+# Or run with Docker Compose
+docker compose up -d
+```
+
+---
+
+## 🌐 Cloud Deployment & Custom Domain Setup
 
 ### 1. Push to GitHub
 ```bash
 git add -A
-git commit -m "Initial commit"
+git commit -m "feat: cloud-native production deployment readiness"
 git push origin main
 ```
 
-### 2. Create Render Web Service
-- **Build Command**: `bash render_deploy.sh`
-- **Start Command**: `gunicorn app:app`
-- **Environment**: Python 3.11+
+### 2. One-Click / Auto Deploy to Cloud Hosts
 
-### 3. Add Required Environment Variables
-| Key | Value | Required |
-|-----|-------|----------|
-| `YOUTUBE_COOKIES_BASE64` | Base64-encoded cookies.txt (see below) | **Yes** for YouTube |
-| `APP_VERSION` | Custom version string | No |
-| `YTDLP_PROXY_URL` | Residential proxy URL (optional) | No |
+#### Option A: Render (Zero-Config with `render.yaml`)
+1. Connect your GitHub repository on [dashboard.render.com](https://dashboard.render.com).
+2. Render will automatically detect [`render.yaml`](render.yaml) or select **Web Service**:
+   - **Environment**: Python 3
+   - **Build Command**: `bash render_deploy.sh`
+   - **Start Command**: `gunicorn --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120 --worker-class gthread app:app`
+3. Click **Deploy**.
 
-### 4. Deploy & Test
-Wait for build → visit your `.onrender.com` URL.
+#### Option B: Railway / Fly.io / DigitalOcean / Linode
+- Select **Deploy from Dockerfile**.
+- Expose port `5000` (or `$PORT`).
+- Healthcheck endpoint: `/health`
+
+---
+
+## 🌍 Custom Domain Configuration
+
+AuvidReaper has built-in `werkzeug.middleware.proxy_fix.ProxyFix`, allowing seamless reverse proxy integration without protocol or header stripping.
+
+### Step 1: Add DNS Record in Your DNS Provider (Cloudflare / Namecheap / GoDaddy)
+- **For Subdomain** (e.g. `reaper.yourdomain.com`):
+  - **Type**: `CNAME`
+  - **Name**: `reaper`
+  - **Target**: `<your-service>.onrender.com` (or your VPS IP / Railway domain)
+  - **Proxy status**: Proxied (Cloudflare Orange Cloud) or DNS Only
+- **For Root Domain** (e.g. `yourdomain.com`):
+  - **Type**: `A` record pointing to your server's public IP address.
+
+### Step 2: Bind Domain in Host
+- In Render: Go to **Settings** → **Custom Domains** → Add `reaper.yourdomain.com`. Render automatically issues a free Let's Encrypt SSL/TLS certificate.
+- In Nginx / Caddy VPS: Proxy `http://127.0.0.1:5000` with `X-Forwarded-For` and `X-Forwarded-Proto https`. ProxyFix automatically resolves the true client IP and HTTPS scheme.
 
 ---
 
@@ -196,7 +233,6 @@ video & audio downloader/
 |--------|----------|-------------|
 | `GET` | `/` | Serve frontend |
 | `GET` | `/health` | Health check (UptimeRobot) |
-| `POST` | `/accept_cookies` | Register cookie consent (enables Enhanced Mode) |
 | `POST` | `/info` | Get video metadata (title, thumbnail, duration) |
 | `POST` | `/start_download` | Queue async download task |
 | `GET` | `/status/<task_id>` | Poll task progress |
@@ -240,6 +276,10 @@ MIT License — free for personal and commercial use.
 - **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** — The engine behind all downloads
 - **[Flask](https://flask.palletsprojects.com/)** — Lightweight Python web framework
 - **Font: [Outfit](https://fonts.google.com/specimen/Outfit)** — Google Fonts
+
+---
+
+Live Link: https://streamgrab-6a19.onrender.com
 
 ---
 

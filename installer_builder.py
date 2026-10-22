@@ -41,7 +41,7 @@ def run_command(cmd, description):
 
 def main():
     print("=" * 60)
-    print("StreamGrab Local Helper - Installer Builder")
+    print("AuvidReaper Local Helper - Installer Builder")
     print("=" * 60)
     
     # Step 1: Check dependencies
@@ -61,7 +61,7 @@ def main():
         'pyinstaller '
         '--onefile '
         '--windowed '
-        '--name StreamGrab '
+        '--name AuvidReaper '
         f'--distpath "{DIST_DIR}" '
         f'--workpath "{BUILD_DIR}" '
         '--hidden-import=flask '
@@ -79,7 +79,12 @@ def main():
         print("[!] The app can still run with: python local_agent_v2.py")
     
     # Step 4: Check if exe was created
-    exe_path = DIST_DIR / 'StreamGrab.exe'
+    exe_path = DIST_DIR / 'AuvidReaper.exe'
+    if not exe_path.exists():
+        fallback = DIST_DIR / 'StreamGrab.exe'
+        if fallback.exists():
+            shutil.copyfile(fallback, exe_path)
+
     if exe_path.exists():
         size_mb = exe_path.stat().st_size / (1024 * 1024)
         print(f"\n[OK] Installer created: {exe_path} ({size_mb:.1f} MB)")
@@ -87,12 +92,12 @@ def main():
         # Step 5: Create setup instructions
         setup_txt = DIST_DIR / 'SETUP.txt'
         setup_txt.write_text(
-            'StreamGrab Local Helper - Setup\n'
+            'AuvidReaper Local Helper - Setup\n'
             '=' * 40 + '\n\n'
-            '1. Run: StreamGrab.exe\n'
+            '1. Run: AuvidReaper.exe\n'
             '2. The helper will start in background\n'
-            '3. Visit: https://video-downloader-y8or.onrender.com/\n'
-            '4. Downloads will now use local helper automatically\n\n'
+            '3. Open the AuvidReaper Web UI\n'
+            '4. Downloads will now route through the local helper automatically\n\n'
             'The helper runs in your system tray.\n'
             'To stop: Right-click icon in tray and select Quit.\n'
         )

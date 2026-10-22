@@ -2,7 +2,7 @@
 # Render build script - clean installation
 
 echo "========================================="
-echo "StreamGrab Build Script for Render"
+echo "AuvidReaper Build Script for Cloud"
 echo "========================================="
 
 # Update system and install ffmpeg (CRITICAL for Linux/Render)
