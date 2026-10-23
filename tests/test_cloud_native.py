@@ -278,3 +278,38 @@ def test_api_start_download_validation(client):
     # Invalid format
     res = client.post('/start_download', json={'url': 'https://youtube.com/watch?v=123', 'format': 'gif'})
     assert res.status_code == 400
+
+
+# ==============================================================================
+# 9. Frontend Mobile Optimization & Ergonomics
+# ==============================================================================
+def test_index_html_mobile_optimizations(client):
+    """Verify index.html serves with complete mobile responsive & 3D optimizations."""
+    res = client.get('/')
+    assert res.status_code == 200
+    html = res.data.decode('utf-8')
+
+    # Viewport & safe-area coverage
+    assert 'viewport-fit=cover' in html
+    assert 'min-height: 100dvh' in html
+    assert 'safe-area-inset-bottom' in html
+    assert 'safe-area-inset-top' in html
+
+    # Mobile breakpoint rules
+    assert '@media (max-width: 768px)' in html
+    assert '@media (max-width: 480px)' in html
+
+    # iOS input auto-zoom prevention (16px) & 44px min tap targets
+    assert 'font-size: 16px !important' in html
+    assert 'min-height: 44px' in html
+
+    # GPU lightening: blur reduction & 3D canvases disabled under 768px
+    assert 'backdrop-filter: blur(8px)' in html
+    assert '#bgSpheresCanvas' in html
+    assert '#fgSpheresCanvas' in html
+    assert 'window.innerWidth < 768' in html
+
+    # Sideways overflow prevention
+    assert 'overflow-wrap: anywhere' in html
+    assert 'min-width: 0' in html
+
